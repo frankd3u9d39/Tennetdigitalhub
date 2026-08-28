@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --canvas: #faf9f6;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --ink: #14151a;
+  --ink-muted: #5b5e68;
+  --ink-faint: #9294a0;
+  --border: #e7e4dc;
+  --border-strong: #d7d3c8;
+  --accent: #0e6b4e;
+  --accent-strong: #0a5540;
+  --accent-ink: #f4faf7;
+  --accent-soft: #e7f3ed;
+  --accent-soft-ink: #0e6b4e;
+  --warn: #9a5b12;
+  --warn-soft: #fbf0dd;
+  --danger: #a3271e;
+  --danger-soft: #fbeae8;
+  --shadow-color: 20 20 15;
+}
+
+.dark {
+  --canvas: #0a0b0d;
+  --surface: #131417;
+  --surface-raised: #17181c;
+  --ink: #f2f1ec;
+  --ink-muted: #a4a6b0;
+  --ink-faint: #6d6f79;
+  --border: #24262b;
+  --border-strong: #32343a;
+  --accent: #22a878;
+  --accent-strong: #2fc48d;
+  --accent-ink: #04120d;
+  --accent-soft: #10261f;
+  --accent-soft-ink: #4fd6a4;
+  --warn: #e0a544;
+  --warn-soft: #2a2110;
+  --danger: #e2685c;
+  --danger-soft: #2a1512;
+  --shadow-color: 0 0 0;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-fraunces);
+  --font-mono: var(--font-jetbrains);
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-ink: var(--accent-soft-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-soft-ink);
+}
+
+.font-feature-tab {
+  font-feature-settings: "tnum" 1, "ss01" 1;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 0px,
+    var(--color-border) 40px,
+    var(--color-surface-raised) 80px
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
