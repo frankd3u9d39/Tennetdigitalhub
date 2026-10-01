@@ -1,13 +1,41 @@
-export type ServiceCategory = "verification" | "records" | "registration";
+export type ServiceCategory = "vtu" | "verification" | "records" | "registration";
+export type ServiceFlow = "lookup" | "vtu" | "request";
 
 export interface ServiceItem {
   slug: string;
   name: string;
   category: ServiceCategory;
+  flow: ServiceFlow;
   description: string;
   price: number;
   icon: string;
-  status: "available" | "maintenance";
+}
+
+export interface VtuOption {
+  label: string;
+  price: number;
+}
+
+export interface VtuFlowConfig {
+  recipientLabel: string;
+  recipientPlaceholder: string;
+  mode: "amount" | "plan";
+  presetAmounts?: number[];
+  plans?: VtuOption[];
+  providers?: string[];
+}
+
+export interface RequestResult {
+  reference: string;
+  status: "Under review" | "Processing";
+  eta: string;
+}
+
+export interface VtuResult {
+  reference: string;
+  recipient: string;
+  amount: number;
+  provider: string;
 }
 
 export interface LedgerEntry {

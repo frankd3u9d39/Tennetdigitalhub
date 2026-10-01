@@ -1,9 +1,9 @@
-import type { LedgerEntry, LookupResult, ServiceItem, VerificationRecord } from "./types";
+import type { LedgerEntry, ServiceItem, VerificationRecord, VtuFlowConfig } from "./types";
 
 export const currentUser = {
   name: "James Okon",
   initials: "JO",
-  email: "james.okon@clearline.dev",
+  email: "james.okon@tennetdigital.ng",
   role: "Verification Agent",
   memberSince: "March 2025",
   reference: "usr_6a8ea6983287a",
@@ -15,61 +15,238 @@ export const currentUser = {
 };
 
 export const services: ServiceItem[] = [
+  // VTU
+  {
+    slug: "airtime",
+    name: "Airtime top-up",
+    category: "vtu",
+    flow: "vtu",
+    description: "Recharge any Nigerian network instantly from your wallet.",
+    price: 0,
+    icon: "phone",
+  },
+  {
+    slug: "data",
+    name: "Data bundles",
+    category: "vtu",
+    flow: "vtu",
+    description: "Buy data plans across MTN, Airtel, Glo, and 9mobile.",
+    price: 0,
+    icon: "wifi",
+  },
+  {
+    slug: "bill",
+    name: "Bill payment",
+    category: "vtu",
+    flow: "vtu",
+    description: "Settle electricity and utility bills against a meter number.",
+    price: 0,
+    icon: "zap",
+  },
+  {
+    slug: "tv-cable",
+    name: "TV cable subscription",
+    category: "vtu",
+    flow: "vtu",
+    description: "Renew DStv, GOtv, and Startimes subscriptions by smartcard.",
+    price: 0,
+    icon: "tv",
+  },
+  // Verification
   {
     slug: "nin",
     name: "NIN verification",
     category: "verification",
+    flow: "lookup",
     description: "Confirm a National Identification Number against demographic records.",
     price: 150,
     icon: "id-badge",
-    status: "available",
   },
   {
     slug: "bvn",
     name: "BVN verification",
     category: "verification",
+    flow: "lookup",
     description: "Match a Bank Verification Number and pull enrolment details.",
     price: 170,
     icon: "landmark",
-    status: "available",
   },
+  // Records & modification
   {
     slug: "nin-modification",
     name: "NIN modification",
     category: "records",
+    flow: "request",
     description: "Submit a correction request for name, DOB, or phone fields.",
     price: 2500,
     icon: "file-edit",
-    status: "available",
+  },
+  {
+    slug: "nin-validation",
+    name: "NIN validation",
+    category: "records",
+    flow: "lookup",
+    description: "Cross-check a NIN slip against the live enrolment register.",
+    price: 300,
+    icon: "check-check",
+  },
+  {
+    slug: "nin-enrollment",
+    name: "NIN enrollment",
+    category: "records",
+    flow: "request",
+    description: "Register a new applicant for a National Identification Number.",
+    price: 3500,
+    icon: "user-plus",
   },
   {
     slug: "bvn-modification",
     name: "BVN modification",
     category: "records",
+    flow: "request",
     description: "Update BVN demographic fields through the enrolment partner.",
     price: 3000,
     icon: "file-cog",
-    status: "maintenance",
   },
   {
-    slug: "cac-registration",
-    name: "CAC registration",
-    category: "registration",
-    description: "Register a business name with the Corporate Affairs Commission.",
-    price: 15000,
-    icon: "briefcase",
-    status: "available",
+    slug: "bvn-retrieval",
+    name: "BVN retrieval",
+    category: "records",
+    flow: "lookup",
+    description: "Recover a lost or forgotten BVN linked to a phone number.",
+    price: 500,
+    icon: "file-search",
   },
+  {
+    slug: "bvn-central-risk",
+    name: "BVN central risk check",
+    category: "records",
+    flow: "lookup",
+    description: "Screen a BVN against the central fraud and risk registry.",
+    price: 800,
+    icon: "shield-alert",
+  },
+  {
+    slug: "bvn-onboarding",
+    name: "BVN onboarding",
+    category: "records",
+    flow: "request",
+    description: "Enrol a first-time customer into the BVN scheme end to end.",
+    price: 2000,
+    icon: "user-check",
+  },
+  {
+    slug: "self-service-delink",
+    name: "Self-service delink",
+    category: "records",
+    flow: "request",
+    description: "Unlink a phone number or account mistakenly tied to a BVN.",
+    price: 1000,
+    icon: "unlink",
+  },
+  {
+    slug: "npc-attestation",
+    name: "NPC attestation",
+    category: "records",
+    flow: "request",
+    description: "Issue a National Population Commission attestation letter.",
+    price: 1200,
+    icon: "file-check-2",
+  },
+  {
+    slug: "personalization",
+    name: "Personalization",
+    category: "records",
+    flow: "request",
+    description: "Encode and personalize a physical ID card for collection.",
+    price: 2500,
+    icon: "search",
+  },
+  {
+    slug: "affidavit",
+    name: "Affidavit",
+    category: "records",
+    flow: "request",
+    description: "Generate a sworn affidavit for name or age declaration.",
+    price: 3500,
+    icon: "scale",
+  },
+  {
+    slug: "ipe-clearance",
+    name: "IPE clearance",
+    category: "records",
+    flow: "request",
+    description: "Clear an in-process enrolment flagged for manual review.",
+    price: 1500,
+    icon: "file-badge",
+  },
+  // Registration
   {
     slug: "tin-registration",
-    name: "TIN registration",
+    name: "Register TIN",
     category: "registration",
+    flow: "request",
     description: "Issue a Tax Identification Number for an individual or entity.",
     price: 1000,
     icon: "receipt",
-    status: "available",
+  },
+  {
+    slug: "cac-registration",
+    name: "Register CAC",
+    category: "registration",
+    flow: "request",
+    description: "Register a business name with the Corporate Affairs Commission.",
+    price: 15000,
+    icon: "briefcase",
+  },
+  {
+    slug: "print-tin",
+    name: "Print TIN",
+    category: "registration",
+    flow: "lookup",
+    description: "Reprint a TIN certificate for an already-registered entity.",
+    price: 500,
+    icon: "printer",
   },
 ];
+
+export const vtuConfig: Record<string, VtuFlowConfig> = {
+  airtime: {
+    recipientLabel: "Phone number",
+    recipientPlaceholder: "080XXXXXXXX",
+    mode: "amount",
+    presetAmounts: [100, 200, 500, 1000, 2000],
+    providers: ["MTN", "Airtel", "Glo", "9mobile"],
+  },
+  data: {
+    recipientLabel: "Phone number",
+    recipientPlaceholder: "080XXXXXXXX",
+    mode: "plan",
+    plans: [
+      { label: "1GB · 30 days", price: 350 },
+      { label: "2GB · 30 days", price: 600 },
+      { label: "5GB · 30 days", price: 1500 },
+      { label: "10GB · 30 days", price: 3000 },
+    ],
+    providers: ["MTN", "Airtel", "Glo", "9mobile"],
+  },
+  bill: {
+    recipientLabel: "Meter number",
+    recipientPlaceholder: "Enter meter number",
+    mode: "amount",
+    presetAmounts: [1000, 2000, 5000, 10000],
+  },
+  "tv-cable": {
+    recipientLabel: "Smartcard number",
+    recipientPlaceholder: "Enter smartcard number",
+    mode: "plan",
+    plans: [
+      { label: "DStv Compact · 1 month", price: 19000 },
+      { label: "GOtv Max · 1 month", price: 8500 },
+      { label: "Startimes Nova · 1 month", price: 1900 },
+    ],
+  },
+};
 
 export const ledger: LedgerEntry[] = [
   {
@@ -167,53 +344,3 @@ export const verificationHistory: VerificationRecord[] = [
   },
 ];
 
-const sampleNames = [
-  "Adaeze N. Chukwu",
-  "Michael O. Bassey",
-  "Grace T. Uduak",
-  "Ibrahim K. Lawal",
-  "Blessing A. Eze",
-  "Samuel D. Okafor",
-];
-
-const sampleStates = ["Lagos", "Rivers", "Akwa Ibom", "Kano", "Enugu", "Oyo"];
-
-function hashString(input: string) {
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    hash = (hash << 5) - hash + input.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-export async function simulateLookup(query: string): Promise<LookupResult> {
-  await new Promise((resolve) => setTimeout(resolve, 1400 + Math.random() * 600));
-
-  if (query.length < 11) {
-    throw new Error("Enter a valid 11-digit number to continue.");
-  }
-  if (query.endsWith("0000")) {
-    throw new Error("No matching record found for this number in the sandbox dataset.");
-  }
-
-  const h = hashString(query);
-  const name = sampleNames[h % sampleNames.length];
-  const state = sampleStates[h % sampleStates.length];
-  const initials = name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2);
-
-  return {
-    fullName: name,
-    dateOfBirth: `19${70 + (h % 28)}-0${1 + (h % 9)}-${10 + (h % 18)}`,
-    gender: h % 2 === 0 ? "Female" : "Male",
-    phone: `080${(h % 90000000).toString().padStart(8, "0")}`,
-    stateOfOrigin: state,
-    lgaOfOrigin: `${state} Central`,
-    trackingId: `CLR-${h.toString(16).toUpperCase().slice(0, 8)}`,
-    photoInitials: initials,
-  };
-}

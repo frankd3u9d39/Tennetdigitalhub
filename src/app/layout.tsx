@@ -24,7 +24,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Clearline — Identity verification infrastructure",
+  title: "Tennet Digital Services — Identity verification infrastructure",
   description:
     "Verify NIN and BVN records, manage a prepaid wallet, and issue compliant identity slips from one console.",
 };
