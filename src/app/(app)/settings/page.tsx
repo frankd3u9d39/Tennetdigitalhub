@@ -1,18 +1,32 @@
+"use client";
+
 import { LogOut, Shield } from "lucide-react";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { currentUser } from "@/lib/mock-data";
-
-const fields = [
-  { label: "Full name", value: currentUser.name },
-  { label: "Email address", value: currentUser.email },
-  { label: "Role", value: currentUser.role },
-  { label: "Member since", value: currentUser.memberSince },
-  { label: "Agent reference", value: currentUser.reference },
-];
+import { useWallet } from "@/lib/wallet";
+import { formatDate } from "@/lib/format";
 
 export default function SettingsPage() {
+  const { profile, loading } = useWallet();
+
+  const initials = profile?.name
+    ? profile.name
+        .split(" ")
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "—";
+
+  const fields = [
+    { label: "Full name", value: profile?.name ?? "—" },
+    { label: "Email address", value: profile?.email ?? "—" },
+    { label: "Role", value: profile?.role ?? "—" },
+    { label: "Member since", value: profile?.memberSince ? formatDate(profile.memberSince) : "—" },
+    { label: "Agent reference", value: profile?.reference ?? "—" },
+  ];
+
   return (
     <>
       <Topbar title="Settings" subtitle="Manage your profile and security" />
@@ -20,11 +34,13 @@ export default function SettingsPage() {
         <Card className="p-6">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ink font-display text-[18px] text-canvas dark:bg-accent dark:text-accent-ink">
-              {currentUser.initials}
+              {initials}
             </div>
             <div>
-              <p className="text-[16px] font-medium text-ink">{currentUser.name}</p>
-              <p className="text-[13px] text-ink-faint">{currentUser.role}</p>
+              <p className="text-[16px] font-medium text-ink">
+                {loading ? "Loading…" : (profile?.name ?? "—")}
+              </p>
+              <p className="text-[13px] text-ink-faint">{profile?.role ?? ""}</p>
             </div>
           </div>
 
@@ -34,7 +50,9 @@ export default function SettingsPage() {
                 <dt className="text-[11.5px] uppercase tracking-wide text-ink-faint">
                   {field.label}
                 </dt>
-                <dd className="mt-1 text-[14px] text-ink">{field.value}</dd>
+                <dd className="mt-1 text-[14px] text-ink">
+                  {loading ? "—" : field.value}
+                </dd>
               </div>
             ))}
           </dl>

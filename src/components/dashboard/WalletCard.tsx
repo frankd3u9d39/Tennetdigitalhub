@@ -33,7 +33,11 @@ export function WalletCard() {
           </Button>
         </div>
       </div>
-      <div className="mt-6 grid gap-3 border-t border-border pt-5 sm:grid-cols-2">
+      <p className="mt-6 border-t border-border pt-5 text-[11px] text-ink-faint">
+        Settlement accounts below are placeholders — not wired to a payment
+        processor yet.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {currentUser.accounts.map((account) => (
           <div
             key={account.number}

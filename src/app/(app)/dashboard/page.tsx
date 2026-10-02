@@ -3,8 +3,9 @@ import { ArrowRight } from "lucide-react";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { WalletCard } from "@/components/dashboard/WalletCard";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { AccountStats } from "@/components/dashboard/AccountStats";
 import { Card } from "@/components/ui/Card";
-import { currentUser, services } from "@/lib/mock-data";
+import { services } from "@/lib/mock-data";
 import { formatNaira } from "@/lib/format";
 import { getServiceIcon } from "@/lib/icons";
 import type { ServiceCategory } from "@/lib/types";
@@ -35,32 +36,15 @@ const categoryOrder: ServiceCategory[] = [
   "registration",
 ];
 
-const stats = [
-  { label: "Verifications this month", value: "38" },
-  { label: "Success rate", value: "94.7%" },
-  { label: "Spent this month", value: formatNaira(6420) },
-];
-
 export default function DashboardPage() {
   return (
     <>
-      <Topbar
-        title="Overview"
-        subtitle={`Welcome back, ${currentUser.name.split(" ")[0]}`}
-      />
+      <Topbar title="Overview" greeting />
       <main className="flex-1 space-y-8 p-6 lg:p-8">
         {/* Wallet + stats */}
         <div className="grid gap-5 lg:grid-cols-3">
           <WalletCard />
-
-          <Card className="flex flex-col divide-y divide-border p-0">
-            {stats.map((stat) => (
-              <div key={stat.label} className="flex items-center justify-between px-6 py-5">
-                <span className="text-[13px] text-ink-muted">{stat.label}</span>
-                <span className="font-mono text-[15px] text-ink">{stat.value}</span>
-              </div>
-            ))}
-          </Card>
+          <AccountStats />
         </div>
 
         {/* Services */}

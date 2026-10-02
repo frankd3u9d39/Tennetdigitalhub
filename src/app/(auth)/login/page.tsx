@@ -30,8 +30,8 @@ export default function LoginPage() {
           <input
             type="email"
             required
-            defaultValue="james.okon@tennetdigital.ng"
-            className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2.5 text-[14px] text-ink outline-none focus:border-accent"
+            placeholder="you@company.com"
+            className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
           />
         </div>
         <div>
@@ -46,8 +46,8 @@ export default function LoginPage() {
           <input
             type="password"
             required
-            defaultValue="••••••••••"
-            className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2.5 text-[14px] text-ink outline-none focus:border-accent"
+            placeholder="Enter your password"
+            className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
           />
         </div>
         <Button type="submit" className="w-full" disabled={loading}>

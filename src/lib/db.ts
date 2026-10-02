@@ -28,14 +28,21 @@ interface AccountSnapshot {
   userId: string;
   name: string;
   email: string;
+  role: string | null;
+  reference: string | null;
+  memberSince: string | null;
   walletId: string;
   balance: number;
 }
 
 async function getOrCreateAccount(email: string = DEMO_EMAIL): Promise<AccountSnapshot> {
   const existing = await getUserByEmail(dc, { email });
-  let userId = existing.data.users[0]?.id;
-  let name = existing.data.users[0]?.name ?? DEMO_NAME;
+  const found = existing.data.users[0];
+  let userId = found?.id;
+  let name = found?.name ?? DEMO_NAME;
+  let role = found?.role ?? null;
+  let reference = found?.reference ?? null;
+  let memberSince = found?.memberSince ?? null;
 
   if (!userId) {
     const created = await createUser(dc, {
@@ -46,6 +53,12 @@ async function getOrCreateAccount(email: string = DEMO_EMAIL): Promise<AccountSn
     });
     userId = created.data.user_insert.id;
     name = DEMO_NAME;
+    role = "Verification Agent";
+
+    const refetch = await getUserByEmail(dc, { email });
+    const refetched = refetch.data.users[0];
+    reference = refetched?.reference ?? null;
+    memberSince = refetched?.memberSince ?? null;
   }
 
   const walletRes = await getWalletByUser(dc, { userId });
@@ -56,7 +69,16 @@ async function getOrCreateAccount(email: string = DEMO_EMAIL): Promise<AccountSn
     wallet = { id: created.data.wallet_insert.id, balance: DEMO_STARTING_BALANCE };
   }
 
-  return { userId, name, email, walletId: wallet.id, balance: wallet.balance };
+  return {
+    userId,
+    name,
+    email,
+    role,
+    reference,
+    memberSince,
+    walletId: wallet.id,
+    balance: wallet.balance,
+  };
 }
 
 export async function getAccountSnapshot(email: string = DEMO_EMAIL) {
@@ -67,7 +89,14 @@ export async function getAccountSnapshot(email: string = DEMO_EMAIL) {
   ]);
 
   return {
-    user: { id: account.userId, name: account.name, email: account.email },
+    user: {
+      id: account.userId,
+      name: account.name,
+      email: account.email,
+      role: account.role,
+      reference: account.reference,
+      memberSince: account.memberSince,
+    },
     balance: account.balance,
     ledger: ledger.data.ledgerEntries,
     verifications: verifications.data.verificationRecords,

@@ -4,9 +4,19 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { currentUser } from "./mock-data";
 import type { LedgerEntry, VerificationRecord } from "./types";
 
+export interface AccountProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string | null;
+  reference: string | null;
+  memberSince: string | null;
+}
+
 interface WalletContextValue {
   balance: number;
   loading: boolean;
+  profile: AccountProfile | null;
   ledger: LedgerEntry[];
   verifications: VerificationRecord[];
   spend: (amount: number, label: string, detail?: string) => Promise<void>;
@@ -17,6 +27,7 @@ interface WalletContextValue {
 const WalletContext = createContext<WalletContextValue>({
   balance: currentUser.walletBalance,
   loading: true,
+  profile: null,
   ledger: [],
   verifications: [],
   spend: async () => {},
@@ -66,6 +77,7 @@ function mapVerifications(raw: {
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useState(currentUser.walletBalance);
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [verifications, setVerifications] = useState<VerificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +88,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) return;
       const data = await res.json();
       setBalance(data.balance);
+      setProfile(data.user);
       setLedger(mapLedger(data.ledger));
       setVerifications(mapVerifications(data.verifications));
     } finally {
@@ -111,7 +124,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <WalletContext.Provider
-      value={{ balance, loading, ledger, verifications, spend, credit, refresh }}
+      value={{ balance, loading, profile, ledger, verifications, spend, credit, refresh }}
     >
       {children}
     </WalletContext.Provider>

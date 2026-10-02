@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Check, Copy, Plus } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, Copy, Plus } from "lucide-react";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -32,7 +32,7 @@ export default function WalletPage() {
     setAmount("");
     setShowFundForm(false);
     try {
-      await credit(value, "Wallet top-up", "Bank transfer · Wema Bank");
+      await credit(value, "Wallet top-up", "Manual top-up — no real transfer processed");
     } finally {
       setFunding(false);
     }
@@ -63,24 +63,33 @@ export default function WalletPage() {
             {showFundForm && (
               <form
                 onSubmit={handleFund}
-                className="mt-5 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface-raised p-4"
+                className="mt-5 space-y-3 rounded-xl border border-border bg-surface-raised p-4"
               >
-                <div className="flex-1 min-w-[160px]">
-                  <label className="text-[12px] font-medium text-ink-muted">
-                    Amount to fund
-                  </label>
-                  <input
-                    autoFocus
-                    inputMode="numeric"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-                    placeholder="5000"
-                    className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2 font-mono text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
-                  />
+                <div className="flex gap-2 rounded-lg border border-warn-soft bg-warn-soft px-3 py-2.5">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
+                  <p className="text-[12px] leading-relaxed text-warn">
+                    No payment processor is connected yet. This credits your wallet
+                    directly for testing — no real money moves.
+                  </p>
                 </div>
-                <Button type="submit" size="sm" disabled={funding}>
-                  {funding ? "Processing…" : "Confirm transfer"}
-                </Button>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex-1 min-w-[160px]">
+                    <label className="text-[12px] font-medium text-ink-muted">
+                      Amount to fund
+                    </label>
+                    <input
+                      autoFocus
+                      inputMode="numeric"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                      placeholder="5000"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2 font-mono text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
+                    />
+                  </div>
+                  <Button type="submit" size="sm" disabled={funding}>
+                    {funding ? "Processing…" : "Credit wallet (test)"}
+                  </Button>
+                </div>
               </form>
             )}
           </Card>
@@ -88,6 +97,10 @@ export default function WalletPage() {
           <Card className="p-6">
             <p className="text-[12px] font-medium uppercase tracking-wide text-ink-faint">
               Settlement accounts
+            </p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-ink-faint">
+              Placeholder numbers — not wired to a payment processor. Transferring
+              to these will not fund any wallet.
             </p>
             <div className="mt-4 space-y-3">
               {currentUser.accounts.map((account) => (
