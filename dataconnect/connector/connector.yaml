@@ -1,0 +1,10 @@
+connectorId: "default"
+generate:
+  javascriptSdk:
+    outputDir: "../../src/lib/dataconnect-generated"
+    package: "@dataconnect/generated"
+    react: false
+  adminNodeSdk:
+    outputDir: "../../src/lib/dataconnect-admin-generated"
+    package: "@dataconnect/admin-generated"
+    packageJsonDir: "../.."

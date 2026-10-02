@@ -1,0 +1,37 @@
+type User @table {
+  name: String!
+  email: String! @unique
+  phone: String
+  role: String
+  reference: String @unique
+  memberSince: Date @default(expr: "request.time")
+}
+
+type Wallet @table {
+  user: User! @unique
+  balance: Float! @default(value: 0)
+}
+
+# direction: "credit" | "debit"
+# status: "pending" | "successful" | "failed"
+type LedgerEntry @table {
+  user: User!
+  label: String!
+  detail: String
+  amount: Float!
+  direction: String!
+  status: String!
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+# type: "NIN" | "BVN"
+# status: "successful" | "failed"
+type VerificationRecord @table {
+  user: User!
+  type: String!
+  queried: String!
+  subjectName: String
+  status: String!
+  cost: Float!
+  createdAt: Timestamp! @default(expr: "request.time")
+}

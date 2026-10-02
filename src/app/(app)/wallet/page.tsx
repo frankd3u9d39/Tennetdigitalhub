@@ -6,18 +6,16 @@ import { Topbar } from "@/components/dashboard/Topbar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { currentUser, ledger as initialLedger } from "@/lib/mock-data";
+import { currentUser } from "@/lib/mock-data";
 import { formatNaira, formatDate } from "@/lib/format";
 import { useWallet } from "@/lib/wallet";
-import type { LedgerEntry } from "@/lib/types";
 
 export default function WalletPage() {
-  const { balance, credit } = useWallet();
-  const [entries, setEntries] = useState<LedgerEntry[]>(initialLedger);
+  const { balance, ledger, loading, credit } = useWallet();
   const [showFundForm, setShowFundForm] = useState(false);
   const [amount, setAmount] = useState("");
+  const [funding, setFunding] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [pendingId, setPendingId] = useState<string | null>(null);
 
   function copy(value: string) {
     navigator.clipboard?.writeText(value);
@@ -25,33 +23,19 @@ export default function WalletPage() {
     setTimeout(() => setCopied(null), 1500);
   }
 
-  function handleFund(e: React.FormEvent) {
+  async function handleFund(e: React.FormEvent) {
     e.preventDefault();
     const value = Number(amount);
-    if (!value || value <= 0) return;
+    if (!value || value <= 0 || funding) return;
 
-    const id = `lg_${Date.now()}`;
-    const entry: LedgerEntry = {
-      id,
-      label: "Wallet top-up",
-      detail: "Bank transfer · Wema Bank",
-      amount: value,
-      direction: "credit",
-      timestamp: new Date().toISOString(),
-      status: "pending",
-    };
-    setEntries((prev) => [entry, ...prev]);
-    setPendingId(id);
+    setFunding(true);
     setAmount("");
     setShowFundForm(false);
-
-    setTimeout(() => {
-      setEntries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, status: "successful" } : e))
-      );
-      credit(value);
-      setPendingId(null);
-    }, 2200);
+    try {
+      await credit(value, "Wallet top-up", "Bank transfer · Wema Bank");
+    } finally {
+      setFunding(false);
+    }
   }
 
   return (
@@ -94,8 +78,8 @@ export default function WalletPage() {
                     className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2 font-mono text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
                   />
                 </div>
-                <Button type="submit" size="sm">
-                  Confirm transfer
+                <Button type="submit" size="sm" disabled={funding}>
+                  {funding ? "Processing…" : "Confirm transfer"}
                 </Button>
               </form>
             )}
@@ -132,7 +116,17 @@ export default function WalletPage() {
         <div>
           <h2 className="text-[15px] font-medium text-ink">Ledger</h2>
           <Card className="mt-4 divide-y divide-border p-0">
-            {entries.map((entry) => (
+            {loading && (
+              <div className="px-5 py-8 text-center text-[13px] text-ink-faint">
+                Loading ledger…
+              </div>
+            )}
+            {!loading && ledger.length === 0 && (
+              <div className="px-5 py-8 text-center text-[13px] text-ink-faint">
+                No transactions yet.
+              </div>
+            )}
+            {ledger.map((entry) => (
               <div
                 key={entry.id}
                 className="flex items-center justify-between gap-4 px-5 py-4"
@@ -162,9 +156,7 @@ export default function WalletPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  {entry.status === "pending" && entry.id === pendingId && (
-                    <Badge tone="warning">Processing</Badge>
-                  )}
+                  {entry.status === "pending" && <Badge tone="warning">Processing</Badge>}
                   {entry.status === "failed" && <Badge tone="danger">Failed</Badge>}
                   <div className="text-right">
                     <p

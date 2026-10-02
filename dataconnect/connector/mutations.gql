@@ -1,0 +1,69 @@
+mutation CreateUser(
+  $name: String!
+  $email: String!
+  $phone: String
+  $role: String
+  $reference: String
+) @auth(level: NO_ACCESS) {
+  user_insert(
+    data: {
+      name: $name
+      email: $email
+      phone: $phone
+      role: $role
+      reference: $reference
+    }
+  )
+}
+
+mutation CreateWallet($userId: UUID!, $balance: Float!) @auth(level: NO_ACCESS) {
+  wallet_insert(data: { user: { id: $userId }, balance: $balance })
+}
+
+mutation SetWalletBalance($walletId: UUID!, $balance: Float!) @auth(level: NO_ACCESS) {
+  wallet_update(id: $walletId, data: { balance: $balance })
+}
+
+mutation InsertLedgerEntry(
+  $userId: UUID!
+  $label: String!
+  $detail: String
+  $amount: Float!
+  $direction: String!
+  $status: String!
+) @auth(level: NO_ACCESS) {
+  ledgerEntry_insert(
+    data: {
+      user: { id: $userId }
+      label: $label
+      detail: $detail
+      amount: $amount
+      direction: $direction
+      status: $status
+    }
+  )
+}
+
+mutation UpdateLedgerEntryStatus($id: UUID!, $status: String!) @auth(level: NO_ACCESS) {
+  ledgerEntry_update(id: $id, data: { status: $status })
+}
+
+mutation InsertVerificationRecord(
+  $userId: UUID!
+  $type: String!
+  $queried: String!
+  $subjectName: String
+  $status: String!
+  $cost: Float!
+) @auth(level: NO_ACCESS) {
+  verificationRecord_insert(
+    data: {
+      user: { id: $userId }
+      type: $type
+      queried: $queried
+      subjectName: $subjectName
+      status: $status
+      cost: $cost
+    }
+  )
+}

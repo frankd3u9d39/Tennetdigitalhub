@@ -1,0 +1,11 @@
+specVersion: "v1"
+serviceId: "tennet"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "tennetdb"
+      cloudSql:
+        instanceId: "tennet-sql"
+connectorDirs: ["./connector"]

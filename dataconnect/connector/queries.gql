@@ -1,0 +1,50 @@
+query GetUserByEmail($email: String!) @auth(level: NO_ACCESS) {
+  users(where: { email: { eq: $email } }) {
+    id
+    name
+    email
+    phone
+    role
+    reference
+    memberSince
+  }
+}
+
+query GetWalletByUser($userId: UUID!) @auth(level: NO_ACCESS) {
+  wallets(where: { user: { id: { eq: $userId } } }) {
+    id
+    balance
+  }
+}
+
+query ListLedgerForUser($userId: UUID!, $limit: Int!) @auth(level: NO_ACCESS) {
+  ledgerEntries(
+    where: { user: { id: { eq: $userId } } }
+    orderBy: { createdAt: DESC }
+    limit: $limit
+  ) {
+    id
+    label
+    detail
+    amount
+    direction
+    status
+    createdAt
+  }
+}
+
+query ListVerificationsForUser($userId: UUID!, $limit: Int!) @auth(level: NO_ACCESS) {
+  verificationRecords(
+    where: { user: { id: { eq: $userId } } }
+    orderBy: { createdAt: DESC }
+    limit: $limit
+  ) {
+    id
+    type
+    queried
+    subjectName
+    status
+    cost
+    createdAt
+  }
+}

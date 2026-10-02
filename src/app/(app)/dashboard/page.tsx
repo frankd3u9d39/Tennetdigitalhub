@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { WalletCard } from "@/components/dashboard/WalletCard";
+import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { Card } from "@/components/ui/Card";
-import { currentUser, ledger, services } from "@/lib/mock-data";
-import { formatNaira, formatDateShort } from "@/lib/format";
+import { currentUser, services } from "@/lib/mock-data";
+import { formatNaira } from "@/lib/format";
 import { getServiceIcon } from "@/lib/icons";
 import type { ServiceCategory } from "@/lib/types";
 
@@ -121,66 +122,7 @@ export default function DashboardPage() {
           })}
         </div>
 
-        {/* Recent activity */}
-        <div>
-          <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-medium text-ink">Recent activity</h2>
-            <Link
-              href="/wallet"
-              className="flex items-center gap-1 text-[13px] text-ink-muted hover:text-ink"
-            >
-              View ledger
-              <ArrowRight size={13} />
-            </Link>
-          </div>
-          <Card className="mt-4 divide-y divide-border p-0">
-            {ledger.slice(0, 5).map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between gap-4 px-5 py-4"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-full " +
-                      (entry.direction === "credit"
-                        ? "bg-accent-soft text-accent-soft-ink"
-                        : "bg-surface-raised text-ink-muted")
-                    }
-                  >
-                    {entry.direction === "credit" ? (
-                      <ArrowDownLeft size={15} />
-                    ) : (
-                      <ArrowUpRight size={15} />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[13.5px] font-medium text-ink">
-                      {entry.label}
-                    </p>
-                    <p className="truncate text-[12.5px] text-ink-faint">
-                      {entry.detail}
-                    </p>
-                  </div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p
-                    className={
-                      "font-mono text-[13.5px] " +
-                      (entry.direction === "credit" ? "text-accent-soft-ink" : "text-ink")
-                    }
-                  >
-                    {entry.direction === "credit" ? "+" : "-"}
-                    {formatNaira(entry.amount)}
-                  </p>
-                  <p className="text-[11.5px] text-ink-faint">
-                    {formatDateShort(entry.timestamp)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </Card>
-        </div>
+        <RecentActivity />
       </main>
     </>
   );

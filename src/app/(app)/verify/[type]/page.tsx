@@ -86,6 +86,18 @@ export default function VerifyPage() {
       if (service!.flow === "lookup") {
         const data = await verificationProvider.lookup(digitsOnly);
         setLookupResult(data);
+        await spend(cost, service!.name, `Lookup for •••••••${digitsOnly.slice(-4)}`);
+        await fetch("/api/verifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: service!.slug === "nin" ? "NIN" : "BVN",
+            queried: `•••••••${digitsOnly.slice(-4)}`,
+            subjectName: data.fullName,
+            status: "successful",
+            cost,
+          }),
+        });
       } else if (service!.flow === "vtu") {
         const data = await vtuProvider.purchase({
           slug: service!.slug,
@@ -94,14 +106,15 @@ export default function VerifyPage() {
           provider: provider || undefined,
         });
         setVtuResult(data);
+        await spend(data.amount, service!.name, `${data.provider} · ${data.recipient}`);
       } else {
         const data = await requestProvider.submit({
           slug: service!.slug,
           fullName,
         });
         setRequestResult(data);
+        await spend(cost, service!.name, `Request ${data.reference}`);
       }
-      spend(cost);
       setStatus("success");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Something went wrong.");

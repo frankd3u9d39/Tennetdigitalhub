@@ -1,18 +1,22 @@
+"use client";
+
 import { CheckCircle2, XCircle } from "lucide-react";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { verificationHistory } from "@/lib/mock-data";
+import { useWallet } from "@/lib/wallet";
 import { formatNaira, formatDate } from "@/lib/format";
 
-const totals = {
-  total: verificationHistory.length,
-  successful: verificationHistory.filter((v) => v.status === "successful").length,
-  failed: verificationHistory.filter((v) => v.status === "failed").length,
-  spent: verificationHistory.reduce((sum, v) => sum + v.cost, 0),
-};
-
 export default function HistoryPage() {
+  const { verifications, loading } = useWallet();
+
+  const totals = {
+    total: verifications.length,
+    successful: verifications.filter((v) => v.status === "successful").length,
+    failed: verifications.filter((v) => v.status === "failed").length,
+    spent: verifications.reduce((sum, v) => sum + v.cost, 0),
+  };
+
   return (
     <>
       <Topbar title="Verification history" subtitle="Every lookup your team has run" />
@@ -47,7 +51,21 @@ export default function HistoryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {verificationHistory.map((record) => (
+                {loading && (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-8 text-center text-ink-faint">
+                      Loading…
+                    </td>
+                  </tr>
+                )}
+                {!loading && verifications.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-8 text-center text-ink-faint">
+                      No lookups yet.
+                    </td>
+                  </tr>
+                )}
+                {verifications.map((record) => (
                   <tr key={record.id} className="transition-colors hover:bg-surface-raised">
                     <td className="px-5 py-3.5">
                       <Badge tone="neutral">{record.type}</Badge>
