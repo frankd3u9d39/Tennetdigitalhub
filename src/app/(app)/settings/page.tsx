@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { LogOut, Shield } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -8,7 +11,18 @@ import { useWallet } from "@/lib/wallet";
 import { formatDate } from "@/lib/format";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const { profile, loading } = useWallet();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      router.push("/login");
+    }
+  }
 
   const initials = profile?.name
     ? profile.name
@@ -76,9 +90,14 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        <Button variant="secondary" className="text-danger">
+        <Button
+          variant="secondary"
+          className="text-danger"
+          onClick={handleSignOut}
+          disabled={signingOut}
+        >
           <LogOut size={14} />
-          Sign out
+          {signingOut ? "Signing out…" : "Sign out"}
         </Button>
       </main>
     </>
