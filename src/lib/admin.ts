@@ -2,7 +2,7 @@ import "server-only";
 import { pool } from "./pg";
 import { settle, refreshPayment } from "./bills";
 import { verifyAndCredit } from "./funding";
-import { writeAudit } from "./settings";
+import { getSettings, writeAudit } from "./settings";
 import { randomBytes } from "crypto";
 
 // Everything the admin dashboard reads and does. Every action that changes anything goes through here, validates its
@@ -412,20 +412,27 @@ export interface ProviderHealth {
   balance: number | null;
   note: string | null;
   error: string | null;
+  /** True when the balance is below the admin's alert level AND it is the prepaid balance that pays for orders. */
+  low: boolean;
 }
 
-let healthCache: { at: number; value: ProviderHealth[] } | null = null;
+type RawHealth = Omit<ProviderHealth, "low"> & { /** This balance pays for customer orders (Paystack's does not). */ isFloat: boolean };
+
+let healthCache: { at: number; value: RawHealth[] } | null = null;
 
 async function timed<T>(p: Promise<T>): Promise<T> {
   return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timed out")), 8000))]);
 }
 
 export async function getProviderHealth(force = false): Promise<ProviderHealth[]> {
-  if (!force && healthCache && Date.now() - healthCache.at < 60_000) return healthCache.value;
+  const alertAt = (await getSettings()).providers.lowBalanceAlert;
+  const withLow = (list: RawHealth[]): ProviderHealth[] =>
+    list.map(({ isFloat, ...h }) => ({ ...h, low: isFloat && h.configured && h.balance !== null && h.balance < alertAt }));
+  if (!force && healthCache && Date.now() - healthCache.at < 60_000) return withLow(healthCache.value);
 
-  const ik = async (): Promise<ProviderHealth> => {
+  const ik = async (): Promise<RawHealth> => {
     const key = process.env.IKONECT_API_KEY;
-    const h: ProviderHealth = { name: "iKonect", mode: "live only (no sandbox)", configured: Boolean(key), balance: null, note: process.env.IKONECT_ENABLED === "true" ? "bills ON" : "bills OFF", error: null };
+    const h: RawHealth = { isFloat: true, name: "iKonect", mode: "live only (no sandbox)", configured: Boolean(key), balance: null, note: process.env.IKONECT_ENABLED === "true" ? "bills ON" : "bills OFF", error: null };
     if (!key) return h;
     try {
       const r = await timed(fetch("https://ikonect.com.ng/api/v1/balance/", { headers: { Authorization: `Bearer ${key}` } }));
@@ -439,10 +446,10 @@ export async function getProviderHealth(force = false): Promise<ProviderHealth[]
     return h;
   };
 
-  const vg = async (): Promise<ProviderHealth> => {
+  const vg = async (): Promise<RawHealth> => {
     const live = process.env.VTUGATE_ENV === "live";
     const key = live ? process.env.VTUGATE_API_KEY : process.env.VTUGATE_TEST_API_KEY;
-    const h: ProviderHealth = { name: "VTUGate", mode: live ? "LIVE" : "sandbox (fake purchases)", configured: Boolean(key), balance: null, note: process.env.VTUGATE_ENABLED === "false" ? "switched off" : null, error: null };
+    const h: RawHealth = { isFloat: live, name: "VTUGate", mode: live ? "LIVE" : "sandbox (fake purchases)", configured: Boolean(key), balance: null, note: process.env.VTUGATE_ENABLED === "false" ? "switched off" : null, error: null };
     if (!key) return h;
     try {
       const r = await timed(fetch("https://api.vtugate.com/api/v1/accountdetails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "" }));
@@ -457,9 +464,9 @@ export async function getProviderHealth(force = false): Promise<ProviderHealth[]
     return h;
   };
 
-  const ps = async (): Promise<ProviderHealth> => {
+  const ps = async (): Promise<RawHealth> => {
     const key = process.env.PAYSTACK_SECRET_KEY;
-    const h: ProviderHealth = { name: "Paystack", mode: key?.startsWith("sk_live_") ? "LIVE" : key ? "test mode" : "not set", configured: Boolean(key), balance: null, note: null, error: null };
+    const h: RawHealth = { isFloat: false, name: "Paystack", mode: key?.startsWith("sk_live_") ? "LIVE" : key ? "test mode" : "not set", configured: Boolean(key), balance: null, note: null, error: null };
     if (!key) return h;
     try {
       const r = await timed(fetch("https://api.paystack.co/balance", { headers: { Authorization: `Bearer ${key}` } }));
@@ -475,5 +482,5 @@ export async function getProviderHealth(force = false): Promise<ProviderHealth[]
 
   const value = await Promise.all([ik(), vg(), ps()]);
   healthCache = { at: Date.now(), value };
-  return value;
+  return withLow(value);
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { ErrorLine, PageHead, Toggle, adminApi, useAdminData } from "@/components/admin/kit";
+import { ErrorLine, Field, NumberInput, PageHead, Toggle, adminApi, useAdminData } from "@/components/admin/kit";
 import type { AllSettings, ServiceFlags } from "@/lib/pricing";
 
 const SERVICES: { key: keyof ServiceFlags; label: string; hint: string }[] = [
@@ -26,6 +26,7 @@ export default function ServicesPage() {
   const { data, error, loading, reload } = useAdminData<AllSettings>("/api/admin/settings");
   const [busy, setBusy] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [alertDraft, setAlertDraft] = useState<number | null>(null);
 
   const save = async (key: "services" | "providers", value: unknown, tag: string) => {
     setBusy(tag);
@@ -113,6 +114,28 @@ export default function ServicesPage() {
                 </div>
               );
             })}
+          </Card>
+          <Card className="mt-4 p-4">
+            <p className="text-[14px] text-ink">Low-balance warning</p>
+            <p className="mb-3 mt-1 text-[12.5px] text-ink-muted">
+              Each provider fills orders from a balance you top up yourself. When it falls below this amount, the admin Overview and Provider health pages warn you. Separately, the app never takes a customer&apos;s money for an order the provider&apos;s balance can&apos;t cover: that order is refused and shows &ldquo;temporarily unavailable&rdquo;.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Warn me below" className="w-48">
+                <NumberInput prefix="₦" value={alertDraft ?? data.providers.lowBalanceAlert} onChange={setAlertDraft} />
+              </Field>
+              <button
+                type="button"
+                disabled={alertDraft === null || !Number.isFinite(alertDraft) || alertDraft === data.providers.lowBalanceAlert || busy === "alert"}
+                onClick={async () => {
+                  await save("providers", { ...data.providers, lowBalanceAlert: alertDraft }, "alert");
+                  setAlertDraft(null);
+                }}
+                className="h-10 rounded-lg bg-ink px-4 text-sm font-medium text-canvas disabled:opacity-50 dark:bg-accent dark:text-accent-ink"
+              >
+                {busy === "alert" ? "Saving…" : "Save"}
+              </button>
+            </div>
           </Card>
           {data.providers.order ? (
             <button type="button" onClick={() => save("providers", { ...data.providers, order: null }, "order")} className="mt-2 text-[13px] text-ink-muted underline hover:text-ink">

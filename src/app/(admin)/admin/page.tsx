@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { ErrorLine, PageHead, Stat, naira, useAdminData, when } from "@/components/admin/kit";
-import type { getOverview } from "@/lib/admin";
+import type { getOverview, ProviderHealth } from "@/lib/admin";
 
 type Overview = Awaited<ReturnType<typeof getOverview>>;
 
@@ -19,6 +19,9 @@ const RANGES = [
 export default function AdminOverview() {
   const [days, setDays] = useState(7);
   const { data, error, loading } = useAdminData<Overview>(`/api/admin/overview?days=${days}`);
+  // Loaded separately: it calls the providers' own servers, so it must not hold up the rest of the page.
+  const health = useAdminData<{ providers: ProviderHealth[] }>("/api/admin/providers");
+  const low = health.data?.providers.filter((p) => p.low) ?? [];
 
   return (
     <>
@@ -45,6 +48,14 @@ export default function AdminOverview() {
         loading ? <div className="h-40 animate-shimmer rounded-2xl" /> : null
       ) : (
         <div className="space-y-6">
+          {low.length > 0 ? (
+            <Link href="/admin/providers" className="flex items-start gap-3 rounded-2xl border border-danger/40 bg-danger-soft p-4 text-danger">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              <span className="text-[14px]">
+                Top up soon: {low.map((p) => `${p.name} has only ${naira(p.balance ?? 0)}`).join("; ")}. Orders it can&apos;t cover are refused until you add funds.
+              </span>
+            </Link>
+          ) : null}
           {data.pending.stuck > 0 ? (
             <Link href="/admin/transactions?status=pending" className="flex items-start gap-3 rounded-2xl border border-warn/40 bg-warn-soft p-4 text-warn">
               <AlertTriangle size={18} className="mt-0.5 shrink-0" />

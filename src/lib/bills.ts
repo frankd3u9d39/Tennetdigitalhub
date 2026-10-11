@@ -5,6 +5,7 @@ import { getAccount } from "./db";
 import { enabledProviders, getProvider, providerAllowed } from "./bill-providers";
 import { getSettings } from "./settings";
 import { chargeFor } from "./pricing";
+import { getProviderBalance, invalidateProviderBalance } from "./provider-balance";
 import {
   ProviderUnavailableError,
   type BillKind,
@@ -229,6 +230,18 @@ export async function payBill(req: PayRequest): Promise<BillResult> {
     throw new BillError("The price has changed. Please review the new total and try again.", 409);
   }
 
+  // --- can a provider actually pay for it? (before any money moves) -----------------------------
+  // A provider pays from a prepaid balance we load ourselves. Skip any whose balance is known to be too low; if none can
+  // cover it, refuse now so the customer is never charged for an order we can't deliver. Unknown balance = go ahead.
+  const funded: BillProvider[] = [];
+  for (const p of candidates) {
+    const balance = await getProviderBalance(p.name);
+    if (balance === null || balance >= amountNaira) funded.push(p);
+    else console.error(`[bills] ${p.name} balance ₦${balance} can't cover ₦${amountNaira}; skipping it`);
+  }
+  if (funded.length === 0) throw new BillError("This service is temporarily unavailable. Please try again later.", 503);
+  candidates = funded;
+
   // --- take the money, atomically --------------------------------------------------------------
   const account = await getAccount(req.email);
   const reference = makeReference();
@@ -277,6 +290,7 @@ export async function payBill(req: PayRequest): Promise<BillResult> {
       // because trying another provider could deliver twice.
       const raw = { error: err instanceof Error ? err.message : String(err) };
       console.error(`[bills] ${provider.name} outcome unknown for ${reference}:`, raw.error);
+      invalidateProviderBalance(provider.name);
       await markPending(reference, provider.name, undefined, raw);
       return {
         status: "pending",
@@ -287,6 +301,8 @@ export async function payBill(req: PayRequest): Promise<BillResult> {
         balance: await currentBalance(account.userId),
       };
     }
+
+    invalidateProviderBalance(provider.name); // the balance just changed (or may have)
 
     if (outcome.state === "success") {
       await settle(reference, "successful", {

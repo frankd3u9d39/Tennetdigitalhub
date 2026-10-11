@@ -43,6 +43,8 @@ export interface ProviderSettings {
   order: string[] | null;
   /** Providers switched off by an admin (the environment can still force one off too). */
   disabled: string[];
+  /** Warn in the admin area when a provider's prepaid balance (what pays for orders) falls below this many naira. */
+  lowBalanceAlert: number;
 }
 
 export interface AllSettings {
@@ -66,7 +68,7 @@ export const DEFAULT_PRICING: PricingSettings = {
 };
 
 export const DEFAULT_SERVICES: ServiceFlags = { airtime: true, data: true, electricity: true, cable: true, nin: true, bvn: true };
-export const DEFAULT_PROVIDERS: ProviderSettings = { order: null, disabled: [] };
+export const DEFAULT_PROVIDERS: ProviderSettings = { order: null, disabled: [], lowBalanceAlert: 2000 };
 
 export const BILL_KINDS: BillKind[] = ["airtime", "data", "electricity", "cable"];
 
@@ -135,7 +137,10 @@ export function validateProviders(input: unknown): { ok: true; value: ProviderSe
   const validList = (l: unknown): l is string[] => Array.isArray(l) && l.every((x) => typeof x === "string" && PROVIDER_NAMES.includes(x));
   if (!validList(p?.disabled)) return { ok: false, error: "Disabled providers must be a list of known providers." };
   if (p.order !== null && !(validList(p.order) && new Set(p.order).size === p.order.length)) return { ok: false, error: "Provider order must list each known provider at most once." };
-  return { ok: true, value: { order: p.order, disabled: [...new Set(p.disabled)] } };
+  // Older saved settings (and callers that only change the order) don't carry the alert level: keep the default.
+  const alert = p.lowBalanceAlert === undefined ? DEFAULT_PROVIDERS.lowBalanceAlert : p.lowBalanceAlert;
+  if (!isMoney(alert, 10_000_000)) return { ok: false, error: "The low-balance alert must be between ₦0 and ₦10,000,000." };
+  return { ok: true, value: { order: p.order, disabled: [...new Set(p.disabled)], lowBalanceAlert: alert } };
 }
 
 /** Deep-merges stored settings over the defaults, so a missing field never breaks pricing. */

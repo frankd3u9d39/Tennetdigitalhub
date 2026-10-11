@@ -26,7 +26,7 @@ export default function ProviderHealthPage() {
           <Card key={p.name} className="p-5">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-[19px] text-ink">{p.name}</h2>
-              {!p.configured ? <Badge tone="warning">not set up</Badge> : p.error ? <Badge tone="danger">error</Badge> : <Badge tone="success">connected</Badge>}
+              {!p.configured ? <Badge tone="warning">not set up</Badge> : p.error ? <Badge tone="danger">error</Badge> : p.low ? <Badge tone="danger">low balance</Badge> : <Badge tone="success">connected</Badge>}
             </div>
             <p className="mt-3 font-display text-[28px] text-ink">{p.balance === null ? "—" : naira(p.balance)}</p>
             <p className="text-[12px] text-ink-faint">balance</p>
