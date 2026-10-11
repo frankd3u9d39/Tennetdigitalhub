@@ -1,5 +1,4 @@
 import "server-only";
-import type { PoolClient } from "pg";
 import { pool } from "./pg";
 
 const NEW_ACCOUNT_STARTING_BALANCE = 0;
@@ -83,6 +82,8 @@ async function getOrCreateAccount(
   }
 }
 
+export const getAccount = getOrCreateAccount;
+
 export async function getAccountSnapshot(email: string) {
   const account = await getOrCreateAccount(email);
   const [ledger, verifications] = await Promise.all([
@@ -92,7 +93,7 @@ export async function getAccountSnapshot(email: string) {
       [account.userId]
     ),
     pool.query(
-      `select id, type, queried, subject_name, status, cost, created_at
+      `select id, type, queried, subject_name, status, cost, created_at, kind
        from public.verification_records where user_id = $1 order by created_at desc limit 20`,
       [account.userId]
     ),
@@ -124,63 +125,8 @@ export async function getAccountSnapshot(email: string) {
       subjectName: r.subject_name,
       status: r.status,
       cost: Number(r.cost),
+      kind: r.kind,
       createdAt: new Date(r.created_at).toISOString(),
     })),
   };
-}
-
-export async function applyWalletTransaction(input: {
-  direction: "credit" | "debit";
-  amount: number;
-  label: string;
-  detail?: string;
-  email: string;
-}) {
-  const account = await getOrCreateAccount(input.email);
-  const delta = input.direction === "credit" ? input.amount : -input.amount;
-
-  const client: PoolClient = await pool.connect();
-  try {
-    await client.query("begin");
-
-    // Atomic: the balance can never go negative, even with concurrent requests.
-    const updated = await client.query(
-      `update public.wallets set balance = balance + $1
-       where id = $2 and balance + $1 >= 0
-       returning balance`,
-      [delta, account.walletId]
-    );
-    if (updated.rowCount === 0) throw new Error("Insufficient wallet balance.");
-
-    const entry = await client.query(
-      `insert into public.ledger_entries (user_id, label, detail, amount, direction, status)
-       values ($1, $2, $3, $4, $5, 'successful') returning id`,
-      [account.userId, input.label, input.detail ?? null, input.amount, input.direction]
-    );
-
-    await client.query("commit");
-    return { balance: Number(updated.rows[0].balance), ledgerEntryId: entry.rows[0].id as string };
-  } catch (err) {
-    await client.query("rollback").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-export async function recordVerification(input: {
-  type: string;
-  queried: string;
-  subjectName?: string;
-  status: string;
-  cost: number;
-  email: string;
-}) {
-  const account = await getOrCreateAccount(input.email);
-  const res = await pool.query(
-    `insert into public.verification_records (user_id, type, queried, subject_name, status, cost)
-     values ($1, $2, $3, $4, $5, $6) returning id`,
-    [account.userId, input.type, input.queried, input.subjectName ?? null, input.status, input.cost]
-  );
-  return res.rows[0].id as string;
 }

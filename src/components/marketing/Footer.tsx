@@ -61,7 +61,6 @@ export function Footer() {
         </div>
         <div className="mt-14 flex flex-col gap-3 border-t border-border pt-6 text-[13px] text-ink-faint sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 Tennet Digital Services Ltd. All rights reserved.</p>
-          <p>Demo environment — connects to sandbox data, not live registries.</p>
         </div>
       </div>
     </footer>

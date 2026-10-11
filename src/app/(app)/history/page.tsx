@@ -68,7 +68,7 @@ export default function HistoryPage() {
                 {verifications.map((record) => (
                   <tr key={record.id} className="transition-colors hover:bg-surface-raised">
                     <td className="px-5 py-3.5">
-                      <Badge tone="neutral">{record.type}</Badge>
+                      <Badge tone="neutral">{record.kind === "slip" ? `${record.type} slip` : record.type}</Badge>
                     </td>
                     <td className="px-5 py-3.5 font-mono text-ink-muted">
                       {record.queried}

@@ -55,14 +55,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t border-border p-4">
-        <div className="rounded-xl border border-border bg-surface-raised p-4">
-          <p className="text-[12.5px] font-medium text-ink">Sandbox mode</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">
-            Lookups return simulated data. No live registry is queried.
-          </p>
-        </div>
-      </div>
     </aside>
   );
 }

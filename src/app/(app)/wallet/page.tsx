@@ -1,39 +1,41 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, Copy, Plus } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Lock, Plus } from "lucide-react";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { currentUser } from "@/lib/mock-data";
 import { formatNaira, formatDate } from "@/lib/format";
 import { useWallet } from "@/lib/wallet";
 
 export default function WalletPage() {
-  const { balance, ledger, loading, credit } = useWallet();
+  const { balance, ledger, loading } = useWallet();
   const [showFundForm, setShowFundForm] = useState(false);
   const [amount, setAmount] = useState("");
   const [funding, setFunding] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [fundError, setFundError] = useState("");
 
-  function copy(value: string) {
-    navigator.clipboard?.writeText(value);
-    setCopied(value);
-    setTimeout(() => setCopied(null), 1500);
-  }
+  const amountValue = Number(amount);
+  const validAmount = Number.isInteger(amountValue) && amountValue >= 100 && amountValue <= 1_000_000;
 
   async function handleFund(e: React.FormEvent) {
     e.preventDefault();
-    const value = Number(amount);
-    if (!value || value <= 0 || funding) return;
-
+    if (!validAmount || funding) return;
     setFunding(true);
-    setAmount("");
-    setShowFundForm(false);
+    setFundError("");
     try {
-      await credit(value, "Wallet top-up", "Manual top-up — no real transfer processed");
-    } finally {
+      const res = await fetch("/api/wallet/fund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountNaira: amountValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start the payment.");
+      // Hand over to Paystack's secure checkout. The wallet is credited only after Paystack confirms payment.
+      window.location.assign(data.authorizationUrl);
+    } catch (err) {
+      setFundError(err instanceof Error ? err.message : "Could not start the payment.");
       setFunding(false);
     }
   }
@@ -43,7 +45,7 @@ export default function WalletPage() {
       <Topbar title="Wallet" subtitle="Fund your balance and review your ledger" />
       <main className="flex-1 space-y-6 p-6 lg:p-8">
         <div className="grid gap-5 lg:grid-cols-3">
-          <Card className="p-6 lg:col-span-2">
+          <Card className="p-6 lg:col-span-3">
             <p className="text-[12px] font-medium uppercase tracking-wide text-ink-faint">
               Available balance
             </p>
@@ -65,19 +67,13 @@ export default function WalletPage() {
                 onSubmit={handleFund}
                 className="mt-5 space-y-3 rounded-xl border border-border bg-surface-raised p-4"
               >
-                <div className="flex gap-2 rounded-lg border border-warn-soft bg-warn-soft px-3 py-2.5">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
-                  <p className="text-[12px] leading-relaxed text-warn">
-                    No payment processor is connected yet. This credits your wallet
-                    directly for testing — no real money moves.
-                  </p>
-                </div>
                 <div className="flex flex-wrap items-end gap-3">
-                  <div className="flex-1 min-w-[160px]">
-                    <label className="text-[12px] font-medium text-ink-muted">
-                      Amount to fund
+                  <div className="min-w-[160px] flex-1">
+                    <label htmlFor="fund-amount" className="text-[12px] font-medium text-ink-muted">
+                      Amount to add (₦100 – ₦1,000,000)
                     </label>
                     <input
+                      id="fund-amount"
                       autoFocus
                       inputMode="numeric"
                       value={amount}
@@ -86,43 +82,22 @@ export default function WalletPage() {
                       className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2 font-mono text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
                     />
                   </div>
-                  <Button type="submit" size="sm" disabled={funding}>
-                    {funding ? "Processing…" : "Credit wallet (test)"}
+                  <Button type="submit" size="sm" disabled={funding || !validAmount}>
+                    {funding ? "Redirecting…" : validAmount ? `Pay ${formatNaira(amountValue)} with Paystack` : "Enter an amount"}
                   </Button>
                 </div>
+                {fundError && (
+                  <div className="flex gap-2 rounded-lg border border-danger-soft bg-danger-soft px-3 py-2.5">
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0 text-danger" />
+                    <p className="text-[12px] leading-relaxed text-danger">{fundError}</p>
+                  </div>
+                )}
+                <p className="flex items-center gap-1.5 text-[11.5px] text-ink-faint">
+                  <Lock size={11} /> You&apos;ll pay on Paystack&apos;s secure page by card, bank transfer or USSD. Your wallet is credited
+                  once the payment is confirmed.
+                </p>
               </form>
             )}
-          </Card>
-
-          <Card className="p-6">
-            <p className="text-[12px] font-medium uppercase tracking-wide text-ink-faint">
-              Settlement accounts
-            </p>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-ink-faint">
-              Placeholder numbers — not wired to a payment processor. Transferring
-              to these will not fund any wallet.
-            </p>
-            <div className="mt-4 space-y-3">
-              {currentUser.accounts.map((account) => (
-                <div
-                  key={account.number}
-                  className="flex items-center justify-between rounded-xl border border-border px-3.5 py-2.5"
-                >
-                  <div>
-                    <p className="text-[12px] text-ink-faint">{account.bank}</p>
-                    <p className="font-mono text-[13.5px] text-ink">{account.number}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => copy(account.number)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-surface-raised hover:text-ink"
-                    aria-label="Copy account number"
-                  >
-                    {copied === account.number ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                </div>
-              ))}
-            </div>
           </Card>
         </div>
 

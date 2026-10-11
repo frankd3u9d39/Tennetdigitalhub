@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { currentUser } from "./mock-data";
 import type { LedgerEntry, VerificationRecord } from "./types";
 
 export interface AccountProfile {
@@ -19,19 +18,15 @@ interface WalletContextValue {
   profile: AccountProfile | null;
   ledger: LedgerEntry[];
   verifications: VerificationRecord[];
-  spend: (amount: number, label: string, detail?: string) => Promise<void>;
-  credit: (amount: number, label: string, detail?: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextValue>({
-  balance: currentUser.walletBalance,
+  balance: 0,
   loading: true,
   profile: null,
   ledger: [],
   verifications: [],
-  spend: async () => {},
-  credit: async () => {},
   refresh: async () => {},
 });
 
@@ -62,6 +57,7 @@ function mapVerifications(raw: {
   subjectName?: string | null;
   status: string;
   cost: number;
+  kind?: string;
   createdAt: string;
 }[]): VerificationRecord[] {
   return raw.map((record) => ({
@@ -71,12 +67,13 @@ function mapVerifications(raw: {
     subjectName: record.subjectName ?? "—",
     status: record.status as VerificationRecord["status"],
     cost: record.cost,
+    kind: record.kind === "slip" ? "slip" : "lookup",
     timestamp: record.createdAt,
   }));
 }
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [balance, setBalance] = useState(currentUser.walletBalance);
+  const [balance, setBalance] = useState(0);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [verifications, setVerifications] = useState<VerificationRecord[]>([]);
@@ -100,31 +97,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, []);
 
-  async function runTransaction(
-    direction: "credit" | "debit",
-    amount: number,
-    label: string,
-    detail?: string
-  ) {
-    const res = await fetch("/api/wallet/transaction", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ direction, amount, label, detail }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Transaction failed.");
-    await refresh();
-  }
-
-  const spend = (amount: number, label: string, detail?: string) =>
-    runTransaction("debit", amount, label, detail);
-
-  const credit = (amount: number, label: string, detail?: string) =>
-    runTransaction("credit", amount, label, detail);
-
   return (
     <WalletContext.Provider
-      value={{ balance, loading, profile, ledger, verifications, spend, credit, refresh }}
+      value={{ balance, loading, profile, ledger, verifications, refresh }}
     >
       {children}
     </WalletContext.Provider>

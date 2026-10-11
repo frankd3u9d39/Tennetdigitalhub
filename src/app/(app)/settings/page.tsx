@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Shield } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Topbar } from "@/components/dashboard/Topbar";
+import { TwoFactorCard } from "@/components/settings/TwoFactorCard";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useWallet } from "@/lib/wallet";
@@ -72,23 +73,7 @@ export default function SettingsPage() {
           </dl>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center gap-3">
-            <Shield size={17} className="text-ink-faint" />
-            <p className="text-[14px] font-medium text-ink">Security</p>
-          </div>
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-border px-4 py-3">
-            <div>
-              <p className="text-[13.5px] text-ink">Two-factor authentication</p>
-              <p className="text-[12.5px] text-ink-faint">
-                Require a verification code at login
-              </p>
-            </div>
-            <Button variant="secondary" size="sm">
-              Enable
-            </Button>
-          </div>
-        </Card>
+        <TwoFactorCard />
 
         <Button
           variant="secondary"

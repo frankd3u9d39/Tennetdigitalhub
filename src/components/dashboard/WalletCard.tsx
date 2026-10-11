@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useWallet } from "@/lib/wallet";
-import { currentUser } from "@/lib/mock-data";
 import { formatNaira } from "@/lib/format";
 
 export function WalletCard() {
@@ -33,26 +31,9 @@ export function WalletCard() {
           </Button>
         </div>
       </div>
-      <p className="mt-6 border-t border-border pt-5 text-[11px] text-ink-faint">
-        Settlement accounts below are placeholders — not wired to a payment
-        processor yet.
+      <p className="mt-6 border-t border-border pt-5 text-[12px] text-ink-faint">
+        Fund your wallet securely with Paystack by card, bank transfer or USSD. Purchases are paid from this balance.
       </p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {currentUser.accounts.map((account) => (
-          <div
-            key={account.number}
-            className="rounded-xl border border-border bg-surface-raised px-4 py-3"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] text-ink-faint">{account.bank}</span>
-              <Badge tone="neutral" className="normal-case">
-                {account.label}
-              </Badge>
-            </div>
-            <p className="mt-1.5 font-mono text-[14px] text-ink">{account.number}</p>
-          </div>
-        ))}
-      </div>
     </Card>
   );
 }

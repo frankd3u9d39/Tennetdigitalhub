@@ -17,7 +17,7 @@ const platformFeatures = [
   {
     icon: Fingerprint,
     title: "NIN & BVN lookups",
-    body: "Submit a number, get a structured match response back in seconds — name, DOB, gender, and a signed tracking ID for your audit trail.",
+    body: "Submit a number, get a match back in seconds — name, date of birth, gender, phone and photo — with each check logged to your audit trail.",
   },
   {
     icon: ShieldCheck,
@@ -40,25 +40,25 @@ const steps = [
   {
     step: "01",
     title: "Fund your wallet",
-    body: "Transfer into your dedicated settlement account. Balances reflect within minutes and are visible to every seat on your team.",
+    body: "Add money by card, bank transfer or USSD through Paystack. Your balance updates as soon as the payment is confirmed.",
   },
   {
     step: "02",
     title: "Submit a query",
-    body: "Enter the NIN or BVN, choose the record type you need, and confirm. The cost is shown before you submit — no surprise deductions.",
+    body: "Enter the NIN or BVN and confirm the person has given consent. The cost is shown before you submit — no surprise deductions.",
   },
   {
     step: "03",
     title: "Receive a structured result",
-    body: "Get a match response with a tracking ID, or a clear decline reason. Every result is logged to your verification history automatically.",
+    body: "Get the match details, or a clear reason if none is found — and you are not charged when there is no result. Every check is logged to your history.",
   },
 ];
 
 const pricing = [
   { name: "NIN verification", price: "₦150", unit: "per lookup" },
   { name: "BVN verification", price: "₦170", unit: "per lookup" },
-  { name: "Record modification", price: "₦2,500", unit: "per request" },
-  { name: "CAC registration", price: "₦15,000", unit: "per filing" },
+  { name: "Airtime & data", price: "From ₦50", unit: "all networks" },
+  { name: "Electricity & TV", price: "Any amount", unit: "or package" },
 ];
 
 export default function Home() {

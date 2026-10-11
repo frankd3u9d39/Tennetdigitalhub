@@ -5,7 +5,9 @@ import { WalletCard } from "@/components/dashboard/WalletCard";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { AccountStats } from "@/components/dashboard/AccountStats";
 import { Card } from "@/components/ui/Card";
-import { services } from "@/lib/mock-data";
+import { Badge } from "@/components/ui/Badge";
+import { services } from "@/lib/services";
+import { getSettings } from "@/lib/settings";
 import { formatNaira } from "@/lib/format";
 import { getServiceIcon } from "@/lib/icons";
 import type { ServiceCategory } from "@/lib/types";
@@ -19,24 +21,24 @@ const categoryMeta: Record<ServiceCategory, { title: string; subtitle: string }>
     title: "Verification services",
     subtitle: "Live — run a NIN or BVN lookup now",
   },
-  records: {
-    title: "Modification services",
-    subtitle: "Record corrections, enrolment, and compliance checks",
-  },
   registration: {
     title: "Registration services",
-    subtitle: "TIN and CAC filings",
+    subtitle: "TIN and CAC filings — coming soon",
   },
 };
 
 const categoryOrder: ServiceCategory[] = [
   "vtu",
   "verification",
-  "records",
   "registration",
 ];
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const { pricing, services: flags } = await getSettings();
+  // Live price for verification services; a service an admin switched off shows as unavailable and can't be opened.
+  const priceOf = (slug: string, fallback: number) => (slug === "nin" ? pricing.identity.nin : slug === "bvn" ? pricing.identity.bvn : fallback);
+  const flagKey: Record<string, keyof typeof flags> = { airtime: "airtime", data: "data", bill: "electricity", "tv-cable": "cable", nin: "nin", bvn: "bvn" };
+  const isOff = (slug: string) => (slug in flagKey ? !flags[flagKey[slug]] : false);
   return (
     <>
       <Topbar title="Overview" greeting />
@@ -76,15 +78,24 @@ export default function DashboardPage() {
                     return (
                       <Card
                         key={service.slug}
-                        className="group relative p-5 transition-colors hover:border-border-strong"
+                        className={
+                          "group relative p-5 transition-colors " +
+                          (service.comingSoon || isOff(service.slug) ? "opacity-60" : "hover:border-border-strong")
+                        }
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-soft text-accent-soft-ink">
                             <Icon size={18} strokeWidth={1.8} />
                           </div>
-                          <span className="font-mono text-[12px] text-ink-faint">
-                            {service.price > 0 ? formatNaira(service.price) : "From ₦50"}
-                          </span>
+                          {service.comingSoon ? (
+                            <Badge tone="neutral">Coming soon</Badge>
+                          ) : isOff(service.slug) ? (
+                            <Badge tone="warning">Unavailable</Badge>
+                          ) : (
+                            <span className="font-mono text-[12px] text-ink-faint">
+                              {priceOf(service.slug, service.price) > 0 ? formatNaira(priceOf(service.slug, service.price)) : "From ₦50"}
+                            </span>
+                          )}
                         </div>
                         <h3 className="mt-4 text-[14px] font-medium text-ink">
                           {service.name}
@@ -92,11 +103,13 @@ export default function DashboardPage() {
                         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">
                           {service.description}
                         </p>
-                        <Link
-                          href={`/verify/${service.slug}`}
-                          className="absolute inset-0"
-                          aria-label={service.name}
-                        />
+                        {!service.comingSoon && !isOff(service.slug) && (
+                          <Link
+                            href={`/verify/${service.slug}`}
+                            className="absolute inset-0"
+                            aria-label={service.name}
+                          />
+                        )}
                       </Card>
                     );
                   })}

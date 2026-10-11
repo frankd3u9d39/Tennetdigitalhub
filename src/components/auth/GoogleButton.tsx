@@ -1,15 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 
-export function GoogleButton({
+// Whether Google sign-in is switched on in Supabase. Asked once per page load; if it can't be determined (network
+// error) or it is off, the button is simply not shown, so a customer never lands on a raw provider error page.
+let googleEnabledCache: boolean | null = null;
+
+async function isGoogleEnabled(): Promise<boolean> {
+  if (googleEnabledCache !== null) return googleEnabledCache;
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
+      headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY! },
+    });
+    const json = await res.json();
+    googleEnabledCache = Boolean(json?.external?.google);
+  } catch {
+    googleEnabledCache = false;
+  }
+  return googleEnabledCache;
+}
+
+/** "Continue with Google" plus its "or" divider, shown only when Google sign-in is actually enabled. */
+export function GoogleSection({
   next = "/dashboard",
   onError,
 }: {
   next?: string;
   onError: (message: string) => void;
 }) {
+  const [enabled, setEnabled] = useState(googleEnabledCache === true);
+
+  useEffect(() => {
+    let cancelled = false;
+    isGoogleEnabled().then((on) => {
+      if (!cancelled) setEnabled(on);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      <GoogleButton next={next} onError={onError} />
+      <div className="my-5 flex items-center gap-3 text-[12px] text-ink-faint">
+        <span className="h-px flex-1 bg-border" />
+        or
+        <span className="h-px flex-1 bg-border" />
+      </div>
+    </>
+  );
+}
+
+function GoogleButton({ next, onError }: { next: string; onError: (message: string) => void }) {
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
@@ -20,11 +66,7 @@ export function GoogleButton({
       options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
     });
     if (error) {
-      onError(
-        error.message.toLowerCase().includes("not enabled")
-          ? "Google sign-in isn't switched on yet."
-          : "Could not start Google sign-in. Please try again."
-      );
+      onError("Could not start Google sign-in. Please try again.");
       setLoading(false);
     }
   }

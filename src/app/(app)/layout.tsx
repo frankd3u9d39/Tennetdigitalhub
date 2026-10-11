@@ -1,10 +1,16 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { SuspendedNotice } from "@/components/dashboard/SuspendedNotice";
 import { WalletProvider } from "@/lib/wallet";
-import { getSessionUser } from "@/lib/auth-server";
+import { getAuthState } from "@/lib/auth-server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  if (!(await getSessionUser())) redirect("/login");
+  const { user, needsMfa, suspended } = await getAuthState();
+  if (!user) redirect("/login");
+  // Two-factor is on but this login hasn't entered its code: nothing in the app is shown until it does.
+  if (needsMfa) redirect("/two-factor");
+  // An admin suspended this account: it can sign in but sees nothing and can do nothing.
+  if (suspended) return <SuspendedNotice />;
 
   return (
     <WalletProvider>

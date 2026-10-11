@@ -1,4 +1,4 @@
-export type ServiceCategory = "vtu" | "verification" | "records" | "registration";
+export type ServiceCategory = "vtu" | "verification" | "registration";
 export type ServiceFlow = "lookup" | "vtu" | "request";
 
 export interface ServiceItem {
@@ -9,33 +9,8 @@ export interface ServiceItem {
   description: string;
   price: number;
   icon: string;
-}
-
-export interface VtuOption {
-  label: string;
-  price: number;
-}
-
-export interface VtuFlowConfig {
-  recipientLabel: string;
-  recipientPlaceholder: string;
-  mode: "amount" | "plan";
-  presetAmounts?: number[];
-  plans?: VtuOption[];
-  providers?: string[];
-}
-
-export interface RequestResult {
-  reference: string;
-  status: "Under review" | "Processing";
-  eta: string;
-}
-
-export interface VtuResult {
-  reference: string;
-  recipient: string;
-  amount: number;
-  provider: string;
+  /** Listed but not purchasable: no real provider behind it yet. */
+  comingSoon?: boolean;
 }
 
 export interface LedgerEntry {
@@ -55,16 +30,7 @@ export interface VerificationRecord {
   subjectName: string;
   status: "successful" | "failed";
   cost: number;
+  /** A plain lookup, or a purchased PDF slip. */
+  kind: "lookup" | "slip";
   timestamp: string;
-}
-
-export interface LookupResult {
-  fullName: string;
-  dateOfBirth: string;
-  gender: string;
-  phone: string;
-  stateOfOrigin: string;
-  lgaOfOrigin: string;
-  trackingId: string;
-  photoInitials: string;
 }

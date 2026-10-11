@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { AuthShell } from "@/components/auth/AuthShell";
-import { GoogleButton } from "@/components/auth/GoogleButton";
+import { GoogleSection } from "@/components/auth/GoogleButton";
 import { Button } from "@/components/ui/Button";
 
 function friendlyAuthError(message: string): string {
@@ -80,12 +80,7 @@ function LoginForm() {
       title="Log in to Tennet"
       subtitle="Enter your credentials to access your verification console."
     >
-      <GoogleButton next={searchParams.get("next") || "/dashboard"} onError={setError} />
-      <div className="my-5 flex items-center gap-3 text-[12px] text-ink-faint">
-        <span className="h-px flex-1 bg-border" />
-        or
-        <span className="h-px flex-1 bg-border" />
-      </div>
+      <GoogleSection next={searchParams.get("next") || "/dashboard"} onError={setError} />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
