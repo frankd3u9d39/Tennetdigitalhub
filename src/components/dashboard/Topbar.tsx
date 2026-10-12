@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Avatar } from "@/components/Avatar";
 import { WalletBalancePill } from "@/components/dashboard/WalletBalancePill";
 import { useWallet } from "@/lib/wallet";
 
@@ -15,14 +16,6 @@ export function Topbar({
   greeting?: boolean;
 }) {
   const { profile } = useWallet();
-  const initials = profile?.name
-    ? profile.name
-        .split(" ")
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "—";
   const firstName = profile?.name?.split(" ")[0];
 
   return (
@@ -40,11 +33,8 @@ export function Topbar({
       <div className="flex items-center gap-3">
         <WalletBalancePill />
         <ThemeToggle />
-        <Link
-          href="/settings"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-ink font-display text-[13px] text-canvas dark:bg-accent dark:text-accent-ink"
-        >
-          {initials}
+        <Link href="/settings" aria-label="Settings">
+          <Avatar name={profile?.name} src={profile?.avatarUrl} className="h-9 w-9 text-[13px]" />
         </Link>
       </div>
     </header>

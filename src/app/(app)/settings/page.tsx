@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { Avatar } from "@/components/Avatar";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { TwoFactorCard } from "@/components/settings/TwoFactorCard";
 import { Card } from "@/components/ui/Card";
@@ -25,15 +26,6 @@ export default function SettingsPage() {
     }
   }
 
-  const initials = profile?.name
-    ? profile.name
-        .split(" ")
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "—";
-
   const fields = [
     { label: "Full name", value: profile?.name ?? "—" },
     { label: "Email address", value: profile?.email ?? "—" },
@@ -48,9 +40,7 @@ export default function SettingsPage() {
       <main className="flex-1 space-y-6 p-6 lg:p-8">
         <Card className="p-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ink font-display text-[18px] text-canvas dark:bg-accent dark:text-accent-ink">
-              {initials}
-            </div>
+            <Avatar name={profile?.name} src={profile?.avatarUrl} className="h-14 w-14 text-[18px]" />
             <div>
               <p className="text-[16px] font-medium text-ink">
                 {loading ? "Loading…" : (profile?.name ?? "—")}

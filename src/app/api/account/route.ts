@@ -10,7 +10,7 @@ export async function GET() {
 
   try {
     const snapshot = await getAccountSnapshot(user.email);
-    return NextResponse.json(snapshot);
+    return NextResponse.json({ ...snapshot, user: { ...snapshot.user, avatarUrl: user.avatarUrl ?? null } });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to load account." },

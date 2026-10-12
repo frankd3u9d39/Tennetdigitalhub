@@ -5,6 +5,20 @@ import { pool } from "@/lib/pg";
 export interface AuthUser {
   uid: string;
   email: string;
+  /** The Google profile picture, when they signed in with Google. Read from the login itself; never stored by us. */
+  avatarUrl?: string | null;
+}
+
+/** Only accept Google's own picture hosts, so the account metadata (which a user can edit) can't point us at any other site. */
+function googleAvatar(meta: Record<string, unknown> | undefined): string | null {
+  const raw = meta?.avatar_url ?? meta?.picture;
+  if (typeof raw !== "string") return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && u.hostname.endsWith(".googleusercontent.com") ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface AuthState {
@@ -38,7 +52,7 @@ export async function getAuthState(): Promise<AuthState> {
 
   const row = (await pool.query(`select suspended_at, is_admin from public.app_users where email = $1`, [data.user.email])).rows[0];
   return {
-    user: { uid: data.user.id, email: data.user.email },
+    user: { uid: data.user.id, email: data.user.email, avatarUrl: googleAvatar(data.user.user_metadata) },
     needsMfa,
     hasMfa,
     suspended: Boolean(row?.suspended_at),

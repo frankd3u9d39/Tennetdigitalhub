@@ -10,6 +10,8 @@ export interface AccountProfile {
   role: string | null;
   reference: string | null;
   memberSince: string | null;
+  /** Google profile picture, if they signed in with Google. */
+  avatarUrl?: string | null;
 }
 
 interface WalletContextValue {
