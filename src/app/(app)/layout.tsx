@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { SuspendedNotice } from "@/components/dashboard/SuspendedNotice";
 import { WalletProvider } from "@/lib/wallet";
+import { MobileNavProvider } from "@/lib/mobile-nav";
 import { getAuthState } from "@/lib/auth-server";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -14,10 +15,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <WalletProvider>
-      <div className="flex min-h-screen">
-        <Sidebar isAdmin={isAdmin} />
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-      </div>
+      <MobileNavProvider>
+        <div className="flex min-h-screen">
+          <Sidebar isAdmin={isAdmin} />
+          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        </div>
+      </MobileNavProvider>
     </WalletProvider>
   );
 }
+
