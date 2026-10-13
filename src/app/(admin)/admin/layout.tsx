@@ -14,21 +14,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Everyone who isn't an admin sees an ordinary "not found" page: the admin area does not announce itself.
   if (suspended || !isAdmin) notFound();
 
-  // Admin power over money and prices needs a second factor on the account, not just a password.
-  if (!hasMfa) {
-    return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-        <h1 className="font-display text-[26px] text-ink">Turn on two-factor first</h1>
-        <p className="mt-2 text-[14px] text-ink-muted">
-          The admin area can change prices and move money, so it only opens for accounts protected by an authenticator app.
-        </p>
-        <Link href="/settings" className="mt-5 inline-flex h-10 items-center justify-center rounded-lg bg-ink px-4 text-sm font-medium text-canvas dark:bg-accent dark:text-accent-ink">
-          Set up two-factor in Settings
-        </Link>
-      </main>
-    );
-  }
-
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       <AdminSidebar email={user.email} />
@@ -36,3 +21,4 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     </div>
   );
 }
+

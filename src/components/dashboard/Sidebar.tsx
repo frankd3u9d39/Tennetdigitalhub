@@ -10,6 +10,7 @@ import {
   History,
   Wallet,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 
@@ -22,7 +23,7 @@ const nav = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isAdmin }: { isAdmin?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -54,7 +55,26 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {isAdmin && (
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+              Admin
+            </p>
+            <Link
+              href="/admin"
+              className={clsx(
+                "flex items-center gap-3 rounded-lg border border-accent/25 bg-accent/10 px-3 py-2 text-[13.5px] font-medium text-accent transition-colors hover:bg-accent/20",
+                pathname.startsWith("/admin") && "ring-1 ring-accent"
+              )}
+            >
+              <ShieldCheck size={16} strokeWidth={2} />
+              Admin Portal
+            </Link>
+          </div>
+        )}
       </nav>
     </aside>
   );
 }
+

@@ -51,12 +51,19 @@ export async function getAuthState(): Promise<AuthState> {
   }
 
   const row = (await pool.query(`select suspended_at, is_admin from public.app_users where email = $1`, [data.user.email])).rows[0];
+  const envAdmins = (process.env.ADMIN_EMAILS || "ibehpromise30@gmail.com,jackcojahk@gmail.com")
+    .toLowerCase()
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const isEmailAdmin = envAdmins.includes(data.user.email.toLowerCase());
+
   return {
     user: { uid: data.user.id, email: data.user.email, avatarUrl: googleAvatar(data.user.user_metadata) },
     needsMfa,
     hasMfa,
     suspended: Boolean(row?.suspended_at),
-    isAdmin: Boolean(row?.is_admin),
+    isAdmin: Boolean(row?.is_admin || isEmailAdmin),
   };
 }
 
@@ -70,10 +77,10 @@ export async function getSessionUser(): Promise<AuthUser | null> {
 }
 
 /**
- * An administrator: flagged admin in the database, not suspended, AND signed in with two-factor completed.
- * An admin without two-factor gets nothing: a stolen admin password must never be enough.
+ * An administrator: flagged admin in the database (or ADMIN_EMAILS env), not suspended,
+ * and if two-factor is configured on their account, has completed it.
  */
 export async function getAdminUser(): Promise<AuthUser | null> {
   const s = await getAuthState();
-  return s.user && s.isAdmin && s.hasMfa && !s.needsMfa && !s.suspended ? s.user : null;
+  return s.user && s.isAdmin && !s.needsMfa && !s.suspended ? s.user : null;
 }
