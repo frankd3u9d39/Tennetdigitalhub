@@ -1,11 +1,10 @@
 import "server-only";
-import { ikonect } from "./ikonect";
-import { interswitch } from "./interswitch";
+import { ayglobal } from "./ayglobal";
 import { vtugate } from "./vtugate";
 import { getSettings } from "../settings";
-import type { BillKind, BillProvider, ProviderName } from "./types";
+import type { BillKind, BillProvider, BillProviderName } from "./types";
 
-const ALL: Record<ProviderName, BillProvider> = { vtugate, ikonect, interswitch };
+const ALL: Record<BillProviderName, BillProvider> = { ayglobal, vtugate };
 
 /**
  * Providers in the order they are tried.
@@ -15,8 +14,8 @@ const ALL: Record<ProviderName, BillProvider> = { vtugate, ikonect, interswitch 
  */
 export async function enabledProviders(kind?: BillKind): Promise<BillProvider[]> {
   const admin = (await getSettings()).providers;
-  const envOrder = (process.env.BILL_PROVIDER_ORDER || "vtugate,ikonect,interswitch").split(",").map((s) => s.trim());
-  const order = (admin.order ?? envOrder).filter((s): s is ProviderName => s in ALL);
+  const envOrder = (process.env.BILL_PROVIDER_ORDER || "ayglobal,vtugate").split(",").map((s) => s.trim());
+  const order = (admin.order ?? envOrder).filter((s): s is BillProviderName => s in ALL);
   return order.map((n) => ALL[n]).filter((pr) => pr.isEnabled() && !admin.disabled.includes(pr.name) && (!kind || pr.supports(kind)));
 }
 
@@ -27,5 +26,5 @@ export async function providerAllowed(provider: BillProvider): Promise<boolean> 
 }
 
 export function getProvider(name: string | null | undefined): BillProvider | null {
-  return name && name in ALL ? ALL[name as ProviderName] : null;
+  return name && name in ALL ? ALL[name as BillProviderName] : null;
 }

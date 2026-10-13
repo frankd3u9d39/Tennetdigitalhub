@@ -52,7 +52,7 @@ const KIND_LABEL: Record<BillKind, string> = {
   cable: "Cable TV",
 };
 
-// Our own unique reference (max 20 chars, which also satisfies Interswitch).
+// Our own unique reference (max 20 chars).
 function makeReference() {
   return `TD${Date.now().toString(36)}${randomBytes(4).toString("hex")}`.toUpperCase().slice(0, 20);
 }

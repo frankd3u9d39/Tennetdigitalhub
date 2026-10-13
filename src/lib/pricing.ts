@@ -130,7 +130,7 @@ export function validateServices(input: unknown): { ok: true; value: ServiceFlag
   return { ok: true, value: Object.fromEntries(keys.map((k) => [k, s[k] as boolean])) as unknown as ServiceFlags };
 }
 
-const PROVIDER_NAMES = ["vtugate", "ikonect", "interswitch"];
+const PROVIDER_NAMES = ["ayglobal", "vtugate"];
 
 export function validateProviders(input: unknown): { ok: true; value: ProviderSettings } | { ok: false; error: string } {
   const p = input as ProviderSettings;

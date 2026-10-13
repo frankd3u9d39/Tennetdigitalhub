@@ -86,7 +86,7 @@ revoke all on public.wallet_fundings from anon, authenticated;
 alter table public.verification_records add column if not exists consent boolean not null default false;
 alter table public.verification_records add column if not exists reference text;
 
--- Distinguish a plain lookup from a purchased PDF slip in the history.
+-- Distinguish lookups, purchased PDF slips, phone retrievals, and modification orders in history.
 alter table public.verification_records add column if not exists kind text not null default 'lookup';
 
 -- ================= Admin dashboard =================

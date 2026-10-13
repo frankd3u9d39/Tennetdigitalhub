@@ -17,9 +17,8 @@ const SERVICES: { key: keyof ServiceFlags; label: string; hint: string }[] = [
 ];
 
 const PROVIDERS: { key: string; label: string; hint: string }[] = [
+  { key: "ayglobal", label: "AYGlobalData", hint: "Airtime, data, electricity, cable (Primary VTU provider)" },
   { key: "vtugate", label: "VTUGate", hint: "Airtime, data, electricity, cable" },
-  { key: "ikonect", label: "iKonect", hint: "Airtime, data, electricity, cable (NIN/BVN lookups are separate)" },
-  { key: "interswitch", label: "Interswitch", hint: "Airtime only" },
 ];
 
 export default function ServicesPage() {
@@ -49,7 +48,7 @@ export default function ServicesPage() {
     </>
   );
 
-  const order = data.providers.order ?? PROVIDERS.map((p) => p.key);
+  const order = (data.providers.order ?? PROVIDERS.map((p) => p.key)).filter((k) => PROVIDERS.some((p) => p.key === k));
   const move = (key: string, delta: number) => {
     const next = [...order];
     const i = next.indexOf(key);

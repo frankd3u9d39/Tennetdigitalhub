@@ -13,23 +13,28 @@ import { getServiceIcon } from "@/lib/icons";
 import type { ServiceCategory } from "@/lib/types";
 
 const categoryMeta: Record<ServiceCategory, { title: string; subtitle: string }> = {
-  vtu: {
-    title: "VTU services",
-    subtitle: "Airtime, data, and bill payments",
+  modification: {
+    title: "Modification services",
+    subtitle: "Record corrections, enrolment checks, and phone retrieval",
   },
   verification: {
     title: "Verification services",
     subtitle: "Live — run a NIN or BVN lookup now",
   },
+  vtu: {
+    title: "VTU & Utility services",
+    subtitle: "Airtime, data, bill payments, and exam tokens",
+  },
   registration: {
     title: "Registration services",
-    subtitle: "TIN and CAC filings — coming soon",
+    subtitle: "CAC business filings and registrations",
   },
 };
 
 const categoryOrder: ServiceCategory[] = [
-  "vtu",
+  "modification",
   "verification",
+  "vtu",
   "registration",
 ];
 

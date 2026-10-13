@@ -90,7 +90,7 @@ function Transactions() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email, name, reference…" className={inputCls + " w-64"} />
         {select(status, setStatus, [["", "Any status"], ["pending", "Pending"], ["successful", "Successful"], ["failed", "Failed"]])}
         {select(direction, setDirection, [["", "In & out"], ["debit", "Purchases"], ["credit", "Money in / refunds"]])}
-        {select(provider, setProvider, [["", "Any provider"], ["vtugate", "VTUGate"], ["ikonect", "iKonect"], ["interswitch", "Interswitch"], ["admin", "Admin"]])}
+        {select(provider, setProvider, [["", "Any provider"], ["ayglobal", "AYGlobalData"], ["checkmyninbvn", "CheckMyNINBVN"], ["vtugate", "VTUGate"], ["admin", "Admin"]])}
         {select(days, setDays, [["1", "Last 24h"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["365", "Last year"], ["", "All time"]])}
         <button type="submit" className="h-10 rounded-lg bg-ink px-4 text-sm font-medium text-canvas dark:bg-accent dark:text-accent-ink">
           Search

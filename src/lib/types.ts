@@ -1,5 +1,5 @@
-export type ServiceCategory = "vtu" | "verification" | "registration";
-export type ServiceFlow = "lookup" | "vtu" | "request";
+export type ServiceCategory = "vtu" | "verification" | "modification" | "registration";
+export type ServiceFlow = "lookup" | "vtu" | "request" | "modification" | "retrieval" | "cac" | "exam";
 
 export interface ServiceItem {
   slug: string;
@@ -30,7 +30,7 @@ export interface VerificationRecord {
   subjectName: string;
   status: "successful" | "failed";
   cost: number;
-  /** A plain lookup, or a purchased PDF slip. */
-  kind: "lookup" | "slip";
+  /** A plain lookup, purchased PDF slip, phone retrieval, or modification order. */
+  kind: "lookup" | "slip" | "retrieval" | "modification";
   timestamp: string;
 }

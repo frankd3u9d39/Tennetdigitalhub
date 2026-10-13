@@ -1,8 +1,5 @@
 import type { ServiceItem } from "./types";
 
-// Prices are NOT stored here: they are editable settings (see pricing.ts / the admin dashboard).
-// Only services that are really connected to a provider belong here as purchasable. A service that isn't
-// wired up must be marked `comingSoon`, never left selectable: customers would be charged for nothing.
 export const services: ServiceItem[] = [
   // VTU: real, via /api/bills/*
   {
@@ -41,6 +38,16 @@ export const services: ServiceItem[] = [
     price: 0,
     icon: "tv",
   },
+  {
+    slug: "exam-pins",
+    name: "Exam PINs",
+    category: "vtu",
+    flow: "exam",
+    description: "Instant scratch card tokens for WAEC, NECO, and NABTEB.",
+    price: 1500,
+    icon: "receipt",
+  },
+
   // Verification: real registry lookups, via /api/verify/lookup
   {
     slug: "nin",
@@ -48,7 +55,7 @@ export const services: ServiceItem[] = [
     category: "verification",
     flow: "lookup",
     description: "Confirm a National Identification Number against demographic records.",
-    price: 0,
+    price: 150,
     icon: "id-badge",
   },
   {
@@ -57,10 +64,58 @@ export const services: ServiceItem[] = [
     category: "verification",
     flow: "lookup",
     description: "Match a Bank Verification Number and pull enrolment details.",
-    price: 0,
+    price: 170,
     icon: "landmark",
   },
-  // Registration: not available until each has a real way to be fulfilled.
+
+  // Modification & Retrieval services: via CheckMyNINBVN API
+  {
+    slug: "nin-modification",
+    name: "NIN modification",
+    category: "modification",
+    flow: "modification",
+    description: "Submit a correction request for name, DOB, or phone fields.",
+    price: 17500,
+    icon: "file-edit",
+  },
+  {
+    slug: "nin-validation",
+    name: "NIN validation",
+    category: "modification",
+    flow: "modification",
+    description: "Cross-check a NIN slip against the live enrolment register.",
+    price: 6500,
+    icon: "check-check",
+  },
+  {
+    slug: "bvn-retrieval",
+    name: "BVN retrieval",
+    category: "modification",
+    flow: "retrieval",
+    description: "Recover a lost or forgotten BVN linked to a phone number.",
+    price: 300,
+    icon: "search",
+  },
+  {
+    slug: "nin-phone",
+    name: "NIN phone search",
+    category: "modification",
+    flow: "retrieval",
+    description: "Recover or look up a NIN record using a phone number.",
+    price: 350,
+    icon: "phone",
+  },
+
+  // Registration services: via AYGlobalData API
+  {
+    slug: "cac-registration",
+    name: "Register CAC",
+    category: "registration",
+    flow: "cac",
+    description: "Register a business name or company with the Corporate Affairs Commission.",
+    price: 18000,
+    icon: "briefcase",
+  },
   {
     slug: "tin-registration",
     name: "Register TIN",
@@ -69,16 +124,6 @@ export const services: ServiceItem[] = [
     description: "Issue a Tax Identification Number for an individual or entity.",
     price: 0,
     icon: "receipt",
-    comingSoon: true,
-  },
-  {
-    slug: "cac-registration",
-    name: "Register CAC",
-    category: "registration",
-    flow: "request",
-    description: "Register a business name with the Corporate Affairs Commission.",
-    price: 0,
-    icon: "briefcase",
     comingSoon: true,
   },
 ];

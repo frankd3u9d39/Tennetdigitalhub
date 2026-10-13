@@ -6,6 +6,10 @@ import { Clock } from "lucide-react";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { BillFlow } from "@/components/bills/BillFlow";
 import { IdentityFlow } from "@/components/identity/IdentityFlow";
+import { RetrievalFlow } from "@/components/identity/RetrievalFlow";
+import { ModificationFlow } from "@/components/identity/ModificationFlow";
+import { CacFlow } from "@/components/business/CacFlow";
+import { ExamPinFlow } from "@/components/bills/ExamPinFlow";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { services } from "@/lib/services";
@@ -15,13 +19,20 @@ export default function VerifyPage() {
   const params = useParams<{ type: string }>();
   const service = services.find((s) => s.slug === params.type);
   const pricing = usePricing();
-  const flagKey: Record<string, keyof NonNullable<typeof pricing>["services"]> = { airtime: "airtime", data: "data", bill: "electricity", "tv-cable": "cable", nin: "nin", bvn: "bvn" };
+  const flagKey: Record<string, keyof NonNullable<typeof pricing>["services"]> = {
+    airtime: "airtime",
+    data: "data",
+    bill: "electricity",
+    "tv-cable": "cable",
+    nin: "nin",
+    bvn: "bvn",
+  };
 
   if (!service) {
     notFound();
   }
 
-  // Listed but not connected to a real provider yet: never let a customer pay for it.
+  // Listed but not connected to a real provider yet
   if (service.comingSoon) {
     return (
       <>
@@ -44,7 +55,7 @@ export default function VerifyPage() {
     );
   }
 
-  // An admin switched this service off: say so plainly (the server refuses it as well).
+  // An admin switched this service off
   if (pricing && flagKey[service.slug] && !pricing.services[flagKey[service.slug]]) {
     return (
       <>
@@ -62,14 +73,34 @@ export default function VerifyPage() {
     );
   }
 
-  // Airtime, data, electricity and cable are real, server-priced purchases (see /api/bills/*).
+  // VTU Bills flow
   if (service.flow === "vtu") {
     return <BillFlow service={service} />;
   }
 
-  // NIN and BVN are real registry lookups, charged and recorded server-side (see /api/verify/lookup).
-  if (service.slug === "nin" || service.slug === "bvn") {
+  // Registry lookups flow
+  if (service.flow === "lookup" || service.slug === "nin" || service.slug === "bvn") {
     return <IdentityFlow service={service} />;
+  }
+
+  // Phone / Tracking retrieval flow
+  if (service.flow === "retrieval") {
+    return <RetrievalFlow service={service} />;
+  }
+
+  // NIN Modification / Validation flow
+  if (service.flow === "modification") {
+    return <ModificationFlow service={service} />;
+  }
+
+  // CAC Registration flow
+  if (service.flow === "cac") {
+    return <CacFlow service={service} />;
+  }
+
+  // Exam PIN flow
+  if (service.flow === "exam") {
+    return <ExamPinFlow service={service} />;
   }
 
   notFound();

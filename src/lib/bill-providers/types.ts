@@ -1,8 +1,9 @@
-// Provider-neutral model for bill payments. Each provider (VTUGate, Interswitch, …) is an adapter
+// Provider-neutral model for bill payments. Each provider (AYGlobalData, VTUGate, …) is an adapter
 // that translates these types to its own API, so the rest of the app never sees provider IDs.
 
 export type BillKind = "airtime" | "data" | "electricity" | "cable";
-export type ProviderName = "vtugate" | "ikonect" | "interswitch";
+export type BillProviderName = "ayglobal" | "vtugate";
+export type ProviderName = BillProviderName | "checkmyninbvn" | "admin";
 
 export interface Plan {
   /** Provider-scoped plan code: only valid with the provider that returned it. */

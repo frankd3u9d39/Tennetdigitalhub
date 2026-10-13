@@ -10,12 +10,31 @@ const cache = new Map<ProviderName, { at: number; value: number | null }>();
 
 async function fetchBalance(name: ProviderName): Promise<number | null> {
   const signal = AbortSignal.timeout(4_000);
-  if (name === "ikonect") {
-    const key = process.env.IKONECT_API_KEY;
+  if (name === "ayglobal") {
+    const key = process.env.AYGLOBAL_API_KEY;
     if (!key) return null;
-    const res = await fetch("https://ikonect.com.ng/api/v1/balance/", { headers: { Authorization: `Bearer ${key}` }, signal, cache: "no-store" });
+    const base = (process.env.AYGLOBAL_BASE_URL || "https://ayglobaldata.com").replace(/\/+$/, "");
+    const res = await fetch(`${base}/api/app/auth/userdata.php`, {
+      headers: { Authorization: `Token ${key}` },
+      signal,
+      cache: "no-store",
+    });
     const j = await res.json();
-    return typeof j?.balance === "number" ? j.balance : null;
+    const bal = Number(j?.data?.user?.balance);
+    return Number.isFinite(bal) ? bal : null;
+  }
+  if (name === "checkmyninbvn") {
+    const key = process.env.CHECKMYNINBVN_API_KEY;
+    if (!key) return null;
+    const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com/api").replace(/\/+$/, "");
+    const res = await fetch(`${base}/balance`, {
+      headers: { "x-api-key": key },
+      signal,
+      cache: "no-store",
+    });
+    const j = await res.json();
+    const bal = Number(j?.data?.balance);
+    return Number.isFinite(bal) ? bal : null;
   }
   if (name === "vtugate") {
     // The sandbox balance is not real money, so there is nothing to protect.
@@ -32,7 +51,7 @@ async function fetchBalance(name: ProviderName): Promise<number | null> {
     const n = Number((await res.json())?.data?.wallet_balance);
     return Number.isFinite(n) ? n : null;
   }
-  return null; // Interswitch has no balance we can read.
+  return null;
 }
 
 /**

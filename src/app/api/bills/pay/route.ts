@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { payBill } from "@/lib/bills";
 import { billsError, parseKind, requireUser } from "@/lib/bills-http";
 
-// A purchase can take a while: iKonect airtime takes about a minute, so the provider call waits up to 120s.
+// Provider calls wait up to 120s.
 export const maxDuration = 150;
 
 // POST /api/bills/pay

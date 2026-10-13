@@ -69,7 +69,7 @@ function mapVerifications(raw: {
     subjectName: record.subjectName ?? "—",
     status: record.status as VerificationRecord["status"],
     cost: record.cost,
-    kind: record.kind === "slip" ? "slip" : "lookup",
+    kind: (record.kind as VerificationRecord["kind"]) || "lookup",
     timestamp: record.createdAt,
   }));
 }

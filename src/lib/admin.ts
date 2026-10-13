@@ -32,6 +32,10 @@ const CATEGORY_SQL = `
     when label = 'BVN verification' then 'BVN lookups'
     when label = 'NIN slip (PDF)' then 'NIN slips'
     when label = 'BVN slip (PDF)' then 'BVN slips'
+    when label like '%phone search%' or label like '%retrieval%' then 'Retrievals'
+    when label like '%modification%' or label like '%validation%' or label like '%correction%' or label like '%update%' then 'Modifications'
+    when label like '%CAC%' then 'CAC Registrations'
+    when label like '%PIN%' or label like '%Token%' or label like '%Scratch Card%' then 'Exam PINs'
     else 'Other'
   end`;
 
@@ -430,21 +434,6 @@ export async function getProviderHealth(force = false): Promise<ProviderHealth[]
     list.map(({ isFloat, ...h }) => ({ ...h, low: isFloat && h.configured && h.balance !== null && h.balance < alertAt }));
   if (!force && healthCache && Date.now() - healthCache.at < 60_000) return withLow(healthCache.value);
 
-  const ik = async (): Promise<RawHealth> => {
-    const key = process.env.IKONECT_API_KEY;
-    const h: RawHealth = { isFloat: true, name: "iKonect", mode: "live only (no sandbox)", configured: Boolean(key), balance: null, note: process.env.IKONECT_ENABLED === "true" ? "bills ON" : "bills OFF", error: null };
-    if (!key) return h;
-    try {
-      const r = await timed(fetch("https://ikonect.com.ng/api/v1/balance/", { headers: { Authorization: `Bearer ${key}` } }));
-      const j = await r.json();
-      if (typeof j.balance === "number") h.balance = j.balance;
-      else h.error = "unexpected response";
-      h.note += process.env.IKONECT_IDENTITY_ENABLED === "true" ? " · lookups ON" : " · lookups OFF";
-    } catch (e) {
-      h.error = e instanceof Error ? e.message : "unreachable";
-    }
-    return h;
-  };
 
   const vg = async (): Promise<RawHealth> => {
     const live = process.env.VTUGATE_ENV === "live";
@@ -458,6 +447,64 @@ export async function getProviderHealth(force = false): Promise<ProviderHealth[]
         h.balance = Number(j.data.wallet_balance);
         h.note = [h.note, `KYC ${j.data.kyc_status}`, `account ${j.data.account_status}`].filter(Boolean).join(" · ");
       } else h.error = String(j?.message ?? "unexpected response");
+    } catch (e) {
+      h.error = e instanceof Error ? e.message : "unreachable";
+    }
+    return h;
+  };
+
+  const ay = async (): Promise<RawHealth> => {
+    const key = process.env.AYGLOBAL_API_KEY;
+    const h: RawHealth = {
+      isFloat: true,
+      name: "AYGlobalData",
+      mode: key ? "LIVE" : "not set",
+      configured: Boolean(key),
+      balance: null,
+      note: process.env.AYGLOBAL_ENABLED === "false" ? "switched off" : "active",
+      error: null,
+    };
+    if (!key) return h;
+    try {
+      const base = (process.env.AYGLOBAL_BASE_URL || "https://ayglobaldata.com").replace(/\/+$/, "");
+      const r = await timed(
+        fetch(`${base}/api/app/auth/userdata.php`, {
+          headers: { Authorization: `Token ${key}` },
+        })
+      );
+      const j = await r.json();
+      const bal = Number(j?.data?.user?.balance);
+      if (Number.isFinite(bal)) h.balance = bal;
+      else h.error = String(j?.msg || j?.message || "unexpected response");
+    } catch (e) {
+      h.error = e instanceof Error ? e.message : "unreachable";
+    }
+    return h;
+  };
+
+  const cmnb = async (): Promise<RawHealth> => {
+    const key = process.env.CHECKMYNINBVN_API_KEY;
+    const h: RawHealth = {
+      isFloat: true,
+      name: "CheckMyNINBVN",
+      mode: key ? "LIVE" : "not set",
+      configured: Boolean(key),
+      balance: null,
+      note: process.env.CHECKMYNINBVN_ENABLED === "false" ? "switched off" : "NIN / BVN lookups",
+      error: null,
+    };
+    if (!key) return h;
+    try {
+      const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com/api").replace(/\/+$/, "");
+      const r = await timed(
+        fetch(`${base}/balance`, {
+          headers: { "x-api-key": key },
+        })
+      );
+      const j = await r.json();
+      const bal = Number(j?.data?.balance);
+      if (Number.isFinite(bal)) h.balance = bal;
+      else h.error = String(j?.message || "unexpected response");
     } catch (e) {
       h.error = e instanceof Error ? e.message : "unreachable";
     }
@@ -480,7 +527,7 @@ export async function getProviderHealth(force = false): Promise<ProviderHealth[]
     return h;
   };
 
-  const value = await Promise.all([ik(), vg(), ps()]);
+  const value = await Promise.all([ay(), cmnb(), vg(), ps()]);
   healthCache = { at: Date.now(), value };
   return withLow(value);
 }

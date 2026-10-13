@@ -5,12 +5,20 @@ import { getAccount } from "./db";
 import { settle } from "./bills";
 import { IDENTITY_LABEL, SLIP_LABEL, SLIP_TIERS, type IdentityType, type SlipTier } from "./identity-prices";
 import { getSettings } from "./settings";
+import type { ProviderName } from "./bill-providers/types";
 
-// Real NIN / BVN lookups and PDF slips through iKonect (https://ikonect.com.ng/api_docs.php).
+// Real NIN / BVN lookups and PDF slips through:
+// - CheckMyNINBVN (https://checkmyninbvn.com/documentation) - Primary verification provider
+// - AYGlobalData (https://ayglobaldata.com/api-docs/) - VTU, Slips and fallback verification
 //
 // Env:
-//   IKONECT_API_KEY                   the developer key.
-//   IKONECT_IDENTITY_ENABLED=true     REQUIRED. iKonect has no sandbox: every successful call spends real wallet money.
+//   CHECKMYNINBVN_API_KEY              CheckMyNINBVN key (x-api-key header)
+//   CHECKMYNINBVN_BASE_URL             defaults to https://checkmyninbvn.com/api
+//   CHECKMYNINBVN_ENABLED=true         optional toggle (defaults to true when key present)
+//
+//   AYGLOBAL_API_KEY                   AYGlobalData token (Authorization: Token ...)
+//   AYGLOBAL_BASE_URL                  defaults to https://ayglobaldata.com
+//   AYGLOBAL_ENABLED=true              optional toggle (defaults to true when key present)
 //
 // Money rules: the wallet is debited FIRST (atomically), and refunded unless the customer actually receives what they
 // paid for (no record found, provider down, timeout, bad response: all refunded). Prices come from the server.
@@ -55,10 +63,13 @@ export interface SlipResult {
 type Kind = "lookup" | "slip";
 
 const MAX_CALLS_PER_HOUR = 30;
-const LOOKUP_SLIP_TYPE = "standard"; // the cheaper tier for lookups
+const LOOKUP_SLIP_TYPE = "standard";
 
 function enabled() {
-  return Boolean(process.env.IKONECT_API_KEY) && process.env.IKONECT_IDENTITY_ENABLED === "true";
+  return (
+    (Boolean(process.env.CHECKMYNINBVN_API_KEY) && process.env.CHECKMYNINBVN_ENABLED !== "false") ||
+    (Boolean(process.env.AYGLOBAL_API_KEY) && process.env.AYGLOBAL_ENABLED !== "false")
+  );
 }
 
 const mask = (n: string) => `•••••••${n.slice(-4)}`;
@@ -70,16 +81,23 @@ interface Reply {
   json: any;
 }
 
-async function callIkonect(kind: Kind, type: IdentityType, number: string, slipType: string): Promise<Reply> {
-  const res = await fetch(`${process.env.IKONECT_BASE_URL || "https://ikonect.com.ng/api/v1"}/${type}${kind === "slip" ? "pdf" : ""}/`, {
+/** Calls CheckMyNINBVN API (https://checkmyninbvn.com/documentation) */
+async function callCheckMyNinBvn(type: IdentityType, number: string): Promise<Reply> {
+  const key = process.env.CHECKMYNINBVN_API_KEY;
+  if (!key) throw new IdentityError("CheckMyNINBVN is not configured.", 503);
+  const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com/api").replace(/\/+$/, "");
+  const endpoint = type === "nin" ? `${base}/nin-verification` : `${base}/bvn-verification`;
+  const body = type === "nin" ? { nin: number, consent: true } : { bvn: number, consent: true };
+
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.IKONECT_API_KEY}`,
+      "x-api-key": key,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ slip_type: slipType, [type]: number }),
-    signal: AbortSignal.timeout(kind === "slip" ? 75_000 : 45_000),
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(45_000),
   });
   const text = await res.text().catch(() => "");
   let json: unknown = null;
@@ -90,6 +108,38 @@ async function callIkonect(kind: Kind, type: IdentityType, number: string, slipT
   }
   return { status: res.status, json };
 }
+
+/** Calls AYGlobalData verify endpoint (https://ayglobaldata.com/api-docs/#verify-id) */
+async function callAyGlobalVerify(type: IdentityType, number: string, slipType?: string): Promise<Reply> {
+  const key = process.env.AYGLOBAL_API_KEY;
+  if (!key) throw new IdentityError("AYGlobalData is not configured.", 503);
+  const base = (process.env.AYGLOBAL_BASE_URL || "https://ayglobaldata.com").replace(/\/+$/, "");
+  const res = await fetch(`${base}/api/verify/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Token ${key}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      type,
+      method: type,
+      slip_type: slipType || "standard",
+      value: number,
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const text = await res.text().catch(() => "");
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  return { status: res.status, json };
+}
+
+
 
 interface Charge {
   userId: string;
@@ -117,7 +167,6 @@ async function beginCharge(input: {
   consent: unknown;
   kind: Kind;
   tier?: SlipTier;
-  /** The price the customer saw. If the admin changed it meanwhile, refuse rather than charge a surprise. */
   expectedPrice?: unknown;
 }): Promise<Charge> {
   const { type, kind } = input;
@@ -144,11 +193,8 @@ async function beginCharge(input: {
   try {
     await client.query("begin");
 
-    // Serialise this user's calls: the lock is held until commit, so the checks below and the debit can't interleave
-    // with a second simultaneous request (which would then see our pending row and be refused).
     await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`identity:${account.userId}`]);
 
-    // Abuse limits: at most 30 paid calls an hour, and one at a time (also stops a double-click being charged twice).
     const recent = await client.query(
       `select count(*)::int as n from public.verification_records where user_id = $1 and created_at > now() - interval '1 hour'`,
       [account.userId]
@@ -192,26 +238,25 @@ async function beginCharge(input: {
 }
 
 /** Anything other than a delivered result: refund in full and tell the customer. */
-async function refundCharge(c: Charge, message: string, status: number, notFound = false): Promise<never> {
-  await settle(c.reference, "failed", { provider: "ikonect" });
+async function refundCharge(c: Charge, message: string, status: number, provider: ProviderName = "checkmyninbvn", notFound = false): Promise<never> {
+  await settle(c.reference, "failed", { provider });
   await recordAttempt(c, { subjectName: null, status: "failed", cost: 0 }).catch(() => {});
   throw new IdentityError(notFound ? message : `${message} You were not charged.`, status);
 }
 
 /** Maps a provider answer that is NOT a delivered result to a refund. Never logs the number or the response body. */
-async function failFromReply(c: Charge, reply: Reply): Promise<never> {
-  const message = String(reply.json?.error ?? reply.json?.message ?? "");
-  console.error(`[identity] ${c.type} ${c.kind} not delivered (HTTP ${reply.status})`);
+async function failFromReply(c: Charge, reply: Reply, provider: ProviderName = "checkmyninbvn"): Promise<never> {
+  const message = String(reply.json?.error ?? reply.json?.message ?? reply.json?.msg ?? "");
+  console.error(`[identity] ${c.type} ${c.kind} not delivered by ${provider} (HTTP ${reply.status})`);
 
-  if (reply.status === 400 && /no record|not found/i.test(message)) {
-    return refundCharge(c, `No matching record was found for this ${c.type.toUpperCase()}. You were not charged.`, 404, true);
+  if (reply.status === 400 && /no record|not found|does not exist/i.test(message)) {
+    return refundCharge(c, `No matching record was found for this ${c.type.toUpperCase()}. You were not charged.`, 404, provider, true);
   }
-  if ([401, 402, 403, 429].includes(reply.status)) {
-    // Our own provider account problem (key, empty wallet, IP block, rate limit): not the customer's fault.
-    return refundCharge(c, "Verification is temporarily unavailable.", 503);
+  if ([401, 402, 403, 429].includes(reply.status) || /insufficient|balance/i.test(message)) {
+    return refundCharge(c, "Verification is temporarily unavailable.", 503, provider);
   }
-  if (reply.status === 400) return refundCharge(c, "The provider couldn't verify this number.", 400);
-  return refundCharge(c, "We couldn't complete the verification. Please try again.", 503);
+  if (reply.status === 400) return refundCharge(c, message || "The provider couldn't verify this number.", 400, provider);
+  return refundCharge(c, "We couldn't complete the verification. Please try again.", 503, provider);
 }
 
 export async function lookupIdentity(input: {
@@ -224,22 +269,38 @@ export async function lookupIdentity(input: {
   const c = await beginCharge({ ...input, kind: "lookup" });
 
   let reply: Reply;
+  let activeProvider: ProviderName = "checkmyninbvn";
+
   try {
-    reply = await callIkonect("lookup", c.type, c.number, LOOKUP_SLIP_TYPE);
+    if (process.env.CHECKMYNINBVN_API_KEY && process.env.CHECKMYNINBVN_ENABLED !== "false") {
+      activeProvider = "checkmyninbvn";
+      reply = await callCheckMyNinBvn(c.type, c.number);
+    } else if (process.env.AYGLOBAL_API_KEY && process.env.AYGLOBAL_ENABLED !== "false") {
+      activeProvider = "ayglobal";
+      reply = await callAyGlobalVerify(c.type, c.number, LOOKUP_SLIP_TYPE);
+    } else {
+      return refundCharge(c, "No identity verification provider configured.", 503, activeProvider);
+    }
   } catch {
-    return refundCharge(c, "We couldn't complete the verification. Please try again.", 503);
+    return refundCharge(c, "We couldn't complete the verification. Please try again.", 503, activeProvider);
   }
 
   const j = reply.json;
+  const isOk = reply.status === 200 && (String(j?.status).toLowerCase() === "success" || String(j?.status).toLowerCase() === "successful");
   const data = j?.data;
-  if (reply.status === 200 && String(j?.status).toLowerCase() === "successful" && data) {
-    const firstName = String(data.first_name ?? "").trim();
-    const middleName = String(data.middle_name ?? "").trim();
-    const lastName = String(data.last_name ?? "").trim();
-    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
 
-    await settle(c.reference, "successful", { provider: "ikonect", providerRef: j?.reference ? String(j.reference) : undefined });
-    // The customer has their result and has paid for it: a failure to save the history row must not hide it.
+  if (isOk && data) {
+    const firstName = String(data.firstname ?? data.first_name ?? "").trim();
+    const middleName = String(data.middlename ?? data.middle_name ?? "").trim();
+    const lastName = String(data.surname ?? data.lastname ?? data.last_name ?? "").trim();
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+    const dob = String(data.birthdate ?? data.dob ?? data.birth_date ?? "");
+    const gender = String(data.gender ?? "");
+    const phone = String(data.telephoneno ?? data.phone ?? data.phone_number ?? "");
+    const photo = typeof data.photo === "string" && data.photo.length > 0 ? data.photo : null;
+    const providerRef = j?.reportID ? String(j.reportID) : j?.reference ? String(j.reference) : undefined;
+
+    await settle(c.reference, "successful", { provider: activeProvider, providerRef });
     await recordAttempt(c, { subjectName: fullName || null, status: "successful", cost: c.price }).catch(() =>
       console.error("[identity] could not save the history record")
     );
@@ -252,14 +313,15 @@ export async function lookupIdentity(input: {
       firstName,
       middleName,
       lastName,
-      dateOfBirth: String(data.birth_date ?? ""),
-      gender: String(data.gender ?? ""),
-      phone: String(data.phone_number ?? ""),
-      photo: typeof data.photo === "string" && data.photo.length > 0 ? data.photo : null,
+      dateOfBirth: dob,
+      gender,
+      phone,
+      photo,
       costNaira: c.price,
     };
   }
-  return failFromReply(c, reply);
+
+  return failFromReply(c, reply, activeProvider);
 }
 
 /** A genuine PDF starts with "%PDF-", which is "JVBERi0" in base64. */
@@ -276,15 +338,26 @@ export async function slipIdentity(input: {
   const c = await beginCharge({ ...input, kind: "slip" });
 
   let reply: Reply;
+  let activeProvider: ProviderName = "ayglobal";
+
   try {
-    reply = await callIkonect("slip", c.type, c.number, input.tier);
+    if (process.env.AYGLOBAL_API_KEY && process.env.AYGLOBAL_ENABLED !== "false") {
+      activeProvider = "ayglobal";
+      reply = await callAyGlobalVerify(c.type, c.number, input.tier);
+    } else {
+      return refundCharge(c, "Slip generation is not configured.", 503, activeProvider);
+    }
   } catch {
-    return refundCharge(c, "We couldn't generate the slip. Please try again.", 503);
+    return refundCharge(c, "We couldn't generate the slip. Please try again.", 503, activeProvider);
   }
 
   const j = reply.json;
-  if (reply.status === 200 && String(j?.status).toLowerCase() === "successful" && looksLikePdf(j?.pdf_base64)) {
-    await settle(c.reference, "successful", { provider: "ikonect", providerRef: j?.reference ? String(j.reference) : undefined });
+  const isOk = reply.status === 200 && (String(j?.status).toLowerCase() === "success" || String(j?.status).toLowerCase() === "successful");
+  const b64 = j?.pdf_base64 || j?.data?.pdf_base64 || j?.pdf;
+
+  if (isOk && looksLikePdf(b64)) {
+    const providerRef = j?.reportID ? String(j.reportID) : j?.reference ? String(j.reference) : undefined;
+    await settle(c.reference, "successful", { provider: activeProvider, providerRef });
     await recordAttempt(c, { subjectName: null, status: "successful", cost: c.price }).catch(() =>
       console.error("[identity] could not save the history record")
     );
@@ -294,9 +367,10 @@ export async function slipIdentity(input: {
       tier: input.tier,
       idNumber: c.masked,
       filename: `${c.type.toUpperCase()}-${input.tier}-slip-${c.number.slice(-4)}.pdf`,
-      pdfBase64: j.pdf_base64,
+      pdfBase64: b64,
       costNaira: c.price,
     };
   }
-  return failFromReply(c, reply);
+
+  return failFromReply(c, reply, activeProvider);
 }
