@@ -26,7 +26,10 @@ export function Topbar({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={toggle}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-canvas text-ink transition-colors hover:bg-surface-raised active:scale-95 lg:hidden"
           aria-label="Open navigation menu"
         >

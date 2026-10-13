@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -35,9 +35,13 @@ export function AdminSidebar({ email }: { email: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // Close mobile drawer on route navigation
+  // Close mobile drawer ONLY when route actually changes
+  const prevPathRef = useRef(pathname);
   useEffect(() => {
-    setOpen(false);
+    if (prevPathRef.current !== pathname) {
+      prevPathRef.current = pathname;
+      setOpen(false);
+    }
   }, [pathname]);
 
   // Lock scroll and handle escape key when drawer is open
@@ -104,7 +108,10 @@ export function AdminSidebar({ email }: { email: string }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(true);
+            }}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-canvas text-ink transition-colors hover:bg-surface-raised active:scale-95"
             aria-label="Open admin navigation menu"
           >
@@ -129,16 +136,20 @@ export function AdminSidebar({ email }: { email: string }) {
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden"
-          onClick={() => setOpen(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(false);
+          }}
           aria-hidden="true"
         />
       )}
 
       {/* Mobile slide-out sidebar drawer */}
       <div
+        onClick={(e) => e.stopPropagation()}
         className={clsx(
           "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border bg-surface shadow-2xl transition-transform duration-200 ease-in-out lg:hidden",
-          open ? "translate-x-0" : "-translate-x-full"
+          open ? "translate-x-0" : "-translate-x-full pointer-events-none"
         )}
       >
         <div className="flex h-14 items-center justify-between border-b border-border px-4">

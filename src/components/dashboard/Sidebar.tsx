@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -33,9 +33,13 @@ export function Sidebar({ isAdmin }: { isAdmin?: boolean }) {
   const { open, close } = useMobileNav();
   const { profile } = useWallet();
 
-  // Close mobile drawer on route navigation
+  // Close mobile drawer ONLY when route actually changes
+  const prevPathRef = useRef(pathname);
   useEffect(() => {
-    close();
+    if (prevPathRef.current !== pathname) {
+      prevPathRef.current = pathname;
+      close();
+    }
   }, [pathname, close]);
 
   // Lock scroll and handle escape key when drawer is open
@@ -115,16 +119,20 @@ export function Sidebar({ isAdmin }: { isAdmin?: boolean }) {
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity lg:hidden"
-          onClick={close}
+          onClick={(e) => {
+            e.stopPropagation();
+            close();
+          }}
           aria-hidden="true"
         />
       )}
 
       {/* Mobile slide-out sidebar drawer */}
       <div
+        onClick={(e) => e.stopPropagation()}
         className={clsx(
           "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border bg-surface shadow-2xl transition-transform duration-200 ease-in-out lg:hidden",
-          open ? "translate-x-0" : "-translate-x-full"
+          open ? "translate-x-0" : "-translate-x-full pointer-events-none"
         )}
       >
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
