@@ -116,14 +116,5 @@ export const services: ServiceItem[] = [
     price: 18000,
     icon: "briefcase",
   },
-  {
-    slug: "tin-registration",
-    name: "Register TIN",
-    category: "registration",
-    flow: "request",
-    description: "Issue a Tax Identification Number for an individual or entity.",
-    price: 0,
-    icon: "receipt",
-    comingSoon: true,
-  },
 ];
+
