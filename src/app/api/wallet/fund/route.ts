@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth-server";
-import { FundingError, startFunding } from "@/lib/funding";
+import { FundingError, startFunding, simulateTestDeposit, isPaystackTestMode } from "@/lib/funding";
 import { PaystackConfigError, PaystackUnavailableError } from "@/lib/paystack";
 
-// POST /api/wallet/fund { amountNaira } → { authorizationUrl }
-// Starts a Paystack checkout. Nothing is credited here: the wallet is only credited after Paystack confirms payment.
+export async function GET() {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  return NextResponse.json({ isTestMode: isPaystackTestMode() });
+}
+
+// POST /api/wallet/fund { amountNaira, simulate?: boolean }
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
-  const body = (await req.json().catch(() => null)) as { amountNaira?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { amountNaira?: unknown; simulate?: boolean } | null;
   const amountNaira = Number(body?.amountNaira);
 
   try {
+    if (body?.simulate && isPaystackTestMode()) {
+      const res = await simulateTestDeposit(user.email, amountNaira);
+      return NextResponse.json({ simulated: true, ...res });
+    }
+
     const base = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
     const { authorizationUrl } = await startFunding(user.email, amountNaira, `${base}/wallet/funded`);
     return NextResponse.json({ authorizationUrl });
@@ -30,3 +40,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Something went wrong." }, { status: 500 });
   }
 }
+

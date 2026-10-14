@@ -166,3 +166,120 @@ export async function handlePaystackWebhook(rawBody: string, signature: string |
     return 500; // makes Paystack retry later
   }
 }
+
+export function isPaystackTestMode(): boolean {
+  const key = process.env.PAYSTACK_SECRET_KEY || "";
+  return key.startsWith("sk_test_") || !key;
+}
+
+/**
+ * Simulates a deposit immediately for test/sandbox mode without redirecting to Paystack.
+ */
+export async function simulateTestDeposit(email: string, amountNaira: number) {
+  if (!Number.isInteger(amountNaira) || amountNaira < MIN_FUNDING_NAIRA || amountNaira > MAX_FUNDING_NAIRA) {
+    throw new FundingError(`Enter an amount between ₦${MIN_FUNDING_NAIRA.toLocaleString()} and ₦${MAX_FUNDING_NAIRA.toLocaleString()}.`);
+  }
+  const account = await getAccount(email);
+  const reference = makeReference();
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `insert into public.wallet_fundings (user_id, reference, amount, status, paid_at, note) values ($1, $2, $3, 'success', now(), 'Simulated test deposit')`,
+      [account.userId, reference, amountNaira]
+    );
+    const updated = await client.query(
+      `update public.wallets set balance = balance + $2 where user_id = $1 returning balance`,
+      [account.userId, amountNaira]
+    );
+    await client.query(
+      `insert into public.ledger_entries (user_id, label, detail, amount, direction, status, reference, provider)
+       values ($1, 'Wallet funding', $2, $3, 'credit', 'successful', $4, 'paystack')`,
+      [account.userId, `Paystack (Test) · ${reference}`, amountNaira, reference]
+    );
+    await client.query("commit");
+    return {
+      reference,
+      amountNaira,
+      newBalance: Number(updated.rows[0]?.balance ?? 0),
+    };
+  } catch (err) {
+    await client.query("rollback").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Withdraws funds from wallet to a Nigerian bank account.
+ */
+export async function withdrawFunds(email: string, input: {
+  amountNaira: number;
+  bankName: string;
+  bankCode?: string;
+  accountNumber: string;
+  accountName: string;
+}) {
+  const { amountNaira, bankName, accountNumber, accountName } = input;
+  if (!Number.isInteger(amountNaira) || amountNaira < 100) {
+    throw new FundingError("Minimum withdrawal amount is ₦100.");
+  }
+  const cleanAcc = (accountNumber || "").replace(/\D/g, "");
+  if (cleanAcc.length !== 10) {
+    throw new FundingError("Enter a valid 10-digit account number.");
+  }
+  if (!bankName?.trim()) {
+    throw new FundingError("Please select a bank.");
+  }
+  if (!accountName?.trim()) {
+    throw new FundingError("Please provide the account name.");
+  }
+
+  const account = await getAccount(email);
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const walletRes = await client.query(
+      `select id, balance from public.wallets where user_id = $1 for update`,
+      [account.userId]
+    );
+    const currentBalance = Number(walletRes.rows[0]?.balance ?? 0);
+    if (currentBalance < amountNaira) {
+      throw new FundingError(`Insufficient balance. You have ₦${currentBalance.toLocaleString()} available.`);
+    }
+
+    const updated = await client.query(
+      `update public.wallets set balance = balance - $2 where user_id = $1 and balance >= $2 returning balance`,
+      [account.userId, amountNaira]
+    );
+    if (updated.rowCount === 0) {
+      throw new FundingError("Insufficient balance.");
+    }
+    const newBalance = Number(updated.rows[0].balance);
+
+    const reference = `TDW${Date.now().toString(36)}${randomBytes(4).toString("hex")}`.toUpperCase();
+    const detail = `Withdrawal to ${bankName.trim()} (${cleanAcc}) · ${accountName.trim()}`;
+
+    await client.query(
+      `insert into public.ledger_entries (user_id, label, detail, amount, direction, status, reference, provider)
+       values ($1, 'Wallet withdrawal', $2, $3, 'debit', 'successful', $4, 'paystack')`,
+      [account.userId, detail, amountNaira, reference]
+    );
+
+    await client.query("commit");
+    return {
+      reference,
+      amountNaira,
+      newBalance,
+      detail,
+    };
+  } catch (err) {
+    await client.query("rollback").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+

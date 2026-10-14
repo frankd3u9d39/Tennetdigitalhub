@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useWallet } from "@/lib/wallet";
@@ -22,11 +22,12 @@ export function WalletCard() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button as={Link} href="/wallet" size="sm">
+          <Button as={Link} href="/wallet?action=fund" size="sm">
             <Plus size={14} />
             Fund wallet
           </Button>
-          <Button as={Link} href="/wallet" variant="secondary" size="sm">
+          <Button as={Link} href="/wallet?action=withdraw" variant="secondary" size="sm">
+            <ArrowUpRight size={14} />
             Withdraw
           </Button>
         </div>
