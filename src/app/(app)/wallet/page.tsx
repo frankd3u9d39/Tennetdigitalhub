@@ -393,9 +393,14 @@ function WalletContent() {
                   </div>
 
                   <div>
-                    <label htmlFor="account-number" className="text-[12.5px] font-medium text-ink-muted">
-                      10-digit account number
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="account-number" className="text-[12.5px] font-medium text-ink-muted">
+                        10-digit account number
+                      </label>
+                      <span className={`text-[11px] font-mono ${accountNumber.length === 10 ? "text-emerald-500 font-semibold" : "text-ink-faint"}`}>
+                        {accountNumber.length}/10 digits
+                      </span>
+                    </div>
                     <input
                       id="account-number"
                       inputMode="numeric"
@@ -405,6 +410,11 @@ function WalletContent() {
                       placeholder="0123456789"
                       className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2.5 font-mono text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
                     />
+                    {accountNumber.length > 0 && accountNumber.length < 10 && (
+                      <p className="mt-1 text-[11px] text-amber-500">
+                        Please enter all 10 digits ({10 - accountNumber.length} more needed).
+                      </p>
+                    )}
                   </div>
 
                   <div className="sm:col-span-2">
