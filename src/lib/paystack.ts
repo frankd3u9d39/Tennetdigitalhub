@@ -73,3 +73,66 @@ export function isValidWebhookSignature(rawBody: string, signature: string | nul
   const b = Buffer.from(signature, "hex");
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+// ================= Paystack Transfers (Payouts / Real Withdrawals) =================
+
+export interface ResolvedAccount {
+  account_number: string;
+  account_name: string;
+}
+
+/** Verifies a 10-digit NUBAN account number against a Nigerian bank code. */
+export async function resolveAccountName(accountNumber: string, bankCode: string): Promise<ResolvedAccount> {
+  const q = new URLSearchParams({ account_number: accountNumber, bank_code: bankCode }).toString();
+  return call<ResolvedAccount>("GET", `/bank/resolve?${q}`);
+}
+
+export interface TransferRecipient {
+  recipient_code: string;
+  name: string;
+  details?: {
+    account_number: string;
+    account_name: string;
+    bank_code: string;
+    bank_name: string;
+  };
+}
+
+/** Creates a transfer recipient on Paystack for sending money to a bank account. */
+export async function createTransferRecipient(input: {
+  name: string;
+  accountNumber: string;
+  bankCode: string;
+}): Promise<TransferRecipient> {
+  return call<TransferRecipient>("POST", "/transferrecipient", {
+    type: "nuban",
+    name: input.name,
+    account_number: input.accountNumber,
+    bank_code: input.bankCode,
+    currency: "NGN",
+  });
+}
+
+export interface TransferOutcome {
+  reference: string;
+  transfer_code: string;
+  amount: number;
+  status: string; // success | pending | otp | failed
+}
+
+/** Initiates a transfer from your Paystack merchant balance to a customer's bank account. */
+export async function initiateTransfer(input: {
+  amountKobo: number;
+  recipientCode: string;
+  reason: string;
+  reference: string;
+}): Promise<TransferOutcome> {
+  return call<TransferOutcome>("POST", "/transfer", {
+    source: "balance",
+    amount: input.amountKobo,
+    recipient: input.recipientCode,
+    reason: input.reason,
+    reference: input.reference,
+  });
+}
+

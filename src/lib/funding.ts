@@ -2,7 +2,14 @@ import "server-only";
 import { randomBytes } from "crypto";
 import { pool } from "./pg";
 import { getAccount } from "./db";
-import { initializeTransaction, isValidWebhookSignature, verifyTransaction, type PaystackTransaction } from "./paystack";
+import {
+  initializeTransaction,
+  isValidWebhookSignature,
+  verifyTransaction,
+  createTransferRecipient,
+  initiateTransfer,
+  type PaystackTransaction,
+} from "./paystack";
 
 export class FundingError extends Error {
   constructor(message: string, public status = 400) {
@@ -262,6 +269,30 @@ export async function withdrawFunds(email: string, input: {
     const reference = `TDW${Date.now().toString(36)}${randomBytes(4).toString("hex")}`.toUpperCase();
     const detail = `Withdrawal to ${bankName.trim()} (${cleanAcc}) · ${accountName.trim()}`;
 
+    // In live mode with real keys: initiate actual interbank transfer through Paystack
+    let paystackTransferCode: string | undefined;
+    if (!isPaystackTestMode() && input.bankCode) {
+      try {
+        const recipient = await createTransferRecipient({
+          name: accountName.trim(),
+          accountNumber: cleanAcc,
+          bankCode: input.bankCode,
+        });
+        const transfer = await initiateTransfer({
+          amountKobo: amountNaira * 100,
+          recipientCode: recipient.recipient_code,
+          reason: `Wallet withdrawal for ${email}`,
+          reference,
+        });
+        paystackTransferCode = transfer.transfer_code;
+      } catch (paystackErr) {
+        await client.query("rollback").catch(() => {});
+        throw new FundingError(
+          paystackErr instanceof Error ? paystackErr.message : "Paystack transfer could not be initiated."
+        );
+      }
+    }
+
     await client.query(
       `insert into public.ledger_entries (user_id, label, detail, amount, direction, status, reference, provider)
        values ($1, 'Wallet withdrawal', $2, $3, 'debit', 'successful', $4, 'paystack')`,
@@ -271,10 +302,12 @@ export async function withdrawFunds(email: string, input: {
     await client.query("commit");
     return {
       reference,
+      transferCode: paystackTransferCode,
       amountNaira,
       newBalance,
       detail,
     };
+
   } catch (err) {
     await client.query("rollback").catch(() => {});
     throw err;
