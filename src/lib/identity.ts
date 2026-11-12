@@ -141,6 +141,52 @@ async function callAyGlobalVerify(type: IdentityType, number: string, slipType?:
 
 
 
+// ---- Reading provider responses ------------------------------------------------------------------
+// Providers don't always match their docs (data vs data.data, firstname vs firstName…), so look for the person
+// record wherever it is instead of assuming one layout.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Obj = Record<string, any>;
+const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+const NAME_KEYS = ["firstname", "first_name", "firstName", "surname", "lastname", "last_name", "lastName", "fullname", "full_name", "fullName"];
+
+/** Breadth-first search (max depth 4) for the first object that carries a name. */
+function findPersonRecord(root: unknown): Obj | null {
+  let level: unknown[] = [root];
+  for (let depth = 0; depth < 4 && level.length; depth++) {
+    const next: unknown[] = [];
+    for (const node of level) {
+      const items = Array.isArray(node) ? node : [node];
+      for (const item of items) {
+        if (!isObj(item)) continue;
+        if (NAME_KEYS.some((k) => typeof item[k] === "string" && item[k].trim())) return item;
+        next.push(...Object.values(item).filter((v) => isObj(v) || Array.isArray(v)));
+      }
+    }
+    level = next;
+  }
+  return null;
+}
+
+/** First non-empty string among the given keys (case-insensitive). */
+function pick(o: Obj, ...keys: string[]): string {
+  const lower = new Map(Object.keys(o).map((k) => [k.toLowerCase(), k]));
+  for (const k of keys) {
+    const real = lower.get(k.toLowerCase());
+    const v = real !== undefined ? o[real] : undefined;
+    if ((typeof v === "string" || typeof v === "number") && String(v).trim()) return String(v).trim();
+  }
+  return "";
+}
+
+/** Key names only (no values, so no personal data) for diagnosing an unexpected layout. */
+function keyLayout(v: unknown, depth = 0): string {
+  if (depth > 3) return "…";
+  if (Array.isArray(v)) return `[${v.length ? keyLayout(v[0], depth + 1) : ""}]`;
+  if (!isObj(v)) return typeof v;
+  return `{${Object.entries(v).map(([k, x]) => (isObj(x) || Array.isArray(x) ? `${k}:${keyLayout(x, depth + 1)}` : k)).join(",")}}`;
+}
+
 interface Charge {
   userId: string;
   type: IdentityType;
@@ -287,17 +333,25 @@ export async function lookupIdentity(input: {
 
   const j = reply.json;
   const isOk = reply.status === 200 && (String(j?.status).toLowerCase() === "success" || String(j?.status).toLowerCase() === "successful");
-  const data = j?.data;
+  const data = isOk ? findPersonRecord(j) : null;
+
+  if (isOk && !data) {
+    // "Success" but no person details: never charge for a blank result. Log only the key layout, never values.
+    console.error(`[identity] ${c.type} lookup: provider said success but no name found. Response keys: ${keyLayout(j)}`);
+    return refundCharge(c, "The provider returned no details for this number.", 502, activeProvider);
+  }
 
   if (isOk && data) {
-    const firstName = String(data.firstname ?? data.first_name ?? "").trim();
-    const middleName = String(data.middlename ?? data.middle_name ?? "").trim();
-    const lastName = String(data.surname ?? data.lastname ?? data.last_name ?? "").trim();
-    const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
-    const dob = String(data.birthdate ?? data.dob ?? data.birth_date ?? "");
-    const gender = String(data.gender ?? "");
-    const phone = String(data.telephoneno ?? data.phone ?? data.phone_number ?? "");
-    const photo = typeof data.photo === "string" && data.photo.length > 0 ? data.photo : null;
+    const firstName = pick(data, "firstname", "first_name", "firstName", "given_name");
+    const middleName = pick(data, "middlename", "middle_name", "middleName", "othername", "other_names");
+    const lastName = pick(data, "surname", "lastname", "last_name", "lastName", "family_name");
+    const fullName =
+      [firstName, middleName, lastName].filter(Boolean).join(" ") || pick(data, "fullname", "full_name", "fullName", "name");
+    const dob = pick(data, "birthdate", "dob", "birth_date", "dateOfBirth", "date_of_birth");
+    const gender = pick(data, "gender", "sex");
+    const phone = pick(data, "telephoneno", "phone", "phone_number", "phoneNumber", "mobile", "telephone");
+    const rawPhoto = pick(data, "photo", "image", "picture", "photograph");
+    const photo = rawPhoto.length > 0 ? rawPhoto : null;
     const providerRef = j?.reportID ? String(j.reportID) : j?.reference ? String(j.reference) : undefined;
 
     await settle(c.reference, "successful", { provider: activeProvider, providerRef });
