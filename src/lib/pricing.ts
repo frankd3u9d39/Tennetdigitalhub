@@ -47,10 +47,19 @@ export interface ProviderSettings {
   lowBalanceAlert: number;
 }
 
+export interface WithdrawalSettings {
+  /**
+   * On: every withdrawal waits in the admin queue and an admin sends the money by hand.
+   * Off: the app tries a Paystack transfer first; if Paystack refuses, the withdrawal still lands in the admin queue.
+   */
+  manual: boolean;
+}
+
 export interface AllSettings {
   pricing: PricingSettings;
   services: ServiceFlags;
   providers: ProviderSettings;
+  withdrawals: WithdrawalSettings;
 }
 
 // Defaults reproduce today's behaviour exactly (no markup), so nothing changes until an admin edits something.
@@ -69,6 +78,8 @@ export const DEFAULT_PRICING: PricingSettings = {
 
 export const DEFAULT_SERVICES: ServiceFlags = { airtime: true, data: true, electricity: true, cable: true, nin: true, bvn: true };
 export const DEFAULT_PROVIDERS: ProviderSettings = { order: null, disabled: [], lowBalanceAlert: 2000 };
+// Manual by default: Paystack Starter accounts can't pay third parties, so admins pay withdrawals by hand.
+export const DEFAULT_WITHDRAWALS: WithdrawalSettings = { manual: true };
 
 export const BILL_KINDS: BillKind[] = ["airtime", "data", "electricity", "cable"];
 
@@ -141,6 +152,12 @@ export function validateProviders(input: unknown): { ok: true; value: ProviderSe
   const alert = p.lowBalanceAlert === undefined ? DEFAULT_PROVIDERS.lowBalanceAlert : p.lowBalanceAlert;
   if (!isMoney(alert, 10_000_000)) return { ok: false, error: "The low-balance alert must be between ₦0 and ₦10,000,000." };
   return { ok: true, value: { order: p.order, disabled: [...new Set(p.disabled)], lowBalanceAlert: alert } };
+}
+
+export function validateWithdrawals(input: unknown): { ok: true; value: WithdrawalSettings } | { ok: false; error: string } {
+  const w = input as Record<string, unknown>;
+  if (typeof w?.manual !== "boolean") return { ok: false, error: "Manual withdrawals must be on or off." };
+  return { ok: true, value: { manual: w.manual } };
 }
 
 /** Deep-merges stored settings over the defaults, so a missing field never breaks pricing. */

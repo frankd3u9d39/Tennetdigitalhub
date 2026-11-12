@@ -27,7 +27,7 @@ export default function ServicesPage() {
   const [saveError, setSaveError] = useState("");
   const [alertDraft, setAlertDraft] = useState<number | null>(null);
 
-  const save = async (key: "services" | "providers", value: unknown, tag: string) => {
+  const save = async (key: "services" | "providers" | "withdrawals", value: unknown, tag: string) => {
     setBusy(tag);
     setSaveError("");
     try {
@@ -81,6 +81,30 @@ export default function ServicesPage() {
             </div>
           ))}
         </Card>
+
+        <div>
+          <h2 className="font-display text-[19px] text-ink">Withdrawals</h2>
+          <Card className="mt-3 flex items-center justify-between gap-4 p-4">
+            <div>
+              <p className="text-[14px] text-ink">Manual payouts</p>
+              <p className="mt-0.5 max-w-xl text-[12.5px] text-ink-muted">
+                {data.withdrawals.manual
+                  ? "On: every withdrawal waits on the Withdrawals page. You send the money from your bank and mark it paid. You're reminded until each one is handled."
+                  : "Off: the app sends withdrawals through Paystack automatically. Any withdrawal Paystack refuses still lands on the Withdrawals page for you to pay by hand."}{" "}
+                Paystack Starter accounts can&apos;t pay other people&apos;s accounts, so keep this on until your Paystack business is upgraded.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[12.5px] text-ink-muted">{data.withdrawals.manual ? "On" : "Off"}</span>
+              <Toggle
+                label="Manual payouts"
+                on={data.withdrawals.manual}
+                disabled={busy === "withdrawals"}
+                onChange={(v) => save("withdrawals", { manual: v }, "withdrawals")}
+              />
+            </div>
+          </Card>
+        </div>
 
         <div>
           <h2 className="font-display text-[19px] text-ink">Bill providers</h2>

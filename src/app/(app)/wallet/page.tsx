@@ -207,6 +207,8 @@ function WalletContent() {
       setWithdrawSuccess(
         data.status === "successful"
           ? `${formatNaira(withdrawValue)} sent to ${data.accountName ?? selectedBank} (${selectedBank}). Ref: ${data.reference}`
+          : data.manual
+          ? `Withdrawal request of ${formatNaira(withdrawValue)} to ${data.accountName ?? selectedBank} (${selectedBank}) received. It's pending and will be paid to your account shortly. Ref: ${data.reference}`
           : `Withdrawal of ${formatNaira(withdrawValue)} to ${selectedBank} is processing. Ref: ${data.reference}`
       );
       setWithdrawAmount("");

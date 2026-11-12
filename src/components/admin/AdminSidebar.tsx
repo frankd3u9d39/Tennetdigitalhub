@@ -10,6 +10,7 @@ import {
   Banknote,
   ClipboardList,
   Gauge,
+  Landmark,
   Menu,
   Receipt,
   SlidersHorizontal,
@@ -19,10 +20,12 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { WithdrawalCountBadge, usePendingWithdrawals } from "@/components/admin/withdrawal-alerts";
 
-const nav = [
+const nav: { href: string; label: string; icon: typeof Gauge; exact?: boolean; badge?: boolean }[] = [
   { href: "/admin", label: "Overview", icon: Gauge, exact: true },
   { href: "/admin/transactions", label: "Transactions", icon: Receipt },
+  { href: "/admin/withdrawals", label: "Withdrawals", icon: Landmark, badge: true },
   { href: "/admin/fundings", label: "Wallet funding", icon: Banknote },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/pricing", label: "Pricing", icon: Tags },
@@ -34,6 +37,7 @@ const nav = [
 export function AdminSidebar({ email }: { email: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const pending = usePendingWithdrawals();
 
   // Close mobile drawer ONLY when route actually changes
   const prevPathRef = useRef(pathname);
@@ -73,6 +77,7 @@ export function AdminSidebar({ email }: { email: string }) {
       >
         <item.icon size={16} strokeWidth={1.9} />
         {item.label}
+        {item.badge ? <WithdrawalCountBadge /> : null}
       </Link>
     );
   });
@@ -112,10 +117,11 @@ export function AdminSidebar({ email }: { email: string }) {
               e.stopPropagation();
               setOpen(true);
             }}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-canvas text-ink transition-colors hover:bg-surface-raised active:scale-95"
+            className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-canvas text-ink transition-colors hover:bg-surface-raised active:scale-95"
             aria-label="Open admin navigation menu"
           >
             <Menu size={18} />
+            {pending && pending.count > 0 ? <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-danger" aria-hidden="true" /> : null}
           </button>
           <Link href="/admin">
             <Logo />
@@ -187,6 +193,7 @@ export function AdminSidebar({ email }: { email: string }) {
               >
                 <item.icon size={17} strokeWidth={1.9} />
                 {item.label}
+                {item.badge ? <WithdrawalCountBadge /> : null}
               </Link>
             );
           })}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth-server";
-import { FundingError, withdrawFunds } from "@/lib/funding";
+import { FundingError } from "@/lib/funding";
+import { withdrawFunds } from "@/lib/withdrawals";
 
 // POST /api/wallet/withdraw
 export async function POST(req: NextRequest) {

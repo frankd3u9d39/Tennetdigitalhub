@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getAuthState } from "@/lib/auth-server";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { WithdrawalAlertBanner } from "@/components/admin/withdrawal-alerts";
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -17,7 +18,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       <AdminSidebar email={user.email} />
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <WithdrawalAlertBanner className="mb-5" />
+        {children}
+      </main>
     </div>
   );
 }
