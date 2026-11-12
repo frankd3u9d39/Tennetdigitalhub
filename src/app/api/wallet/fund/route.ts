@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth-server";
-import { FundingError, startFunding, simulateTestDeposit, isPaystackTestMode } from "@/lib/funding";
+import { FundingError, startFunding, simulateTestDeposit, isPaystackTestMode, testDepositsAllowed } from "@/lib/funding";
 import { PaystackConfigError, PaystackUnavailableError } from "@/lib/paystack";
 
 export async function GET() {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const amountNaira = Number(body?.amountNaira);
 
   try {
-    if (body?.simulate && isPaystackTestMode()) {
+    if (body?.simulate && testDepositsAllowed()) {
       const res = await simulateTestDeposit(user.email, amountNaira);
       return NextResponse.json({ simulated: true, ...res });
     }

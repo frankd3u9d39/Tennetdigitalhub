@@ -176,9 +176,20 @@ export async function handlePaystackWebhook(rawBody: string, signature: string |
   }
 }
 
+// Test mode requires an actual test key. A MISSING key is NOT test mode: otherwise a server with no key
+// configured would fail open and let simulated deposits mint real balance.
 export function isPaystackTestMode(): boolean {
-  const key = process.env.PAYSTACK_SECRET_KEY || "";
-  return key.startsWith("sk_test_") || !key;
+  return (process.env.PAYSTACK_SECRET_KEY || "").startsWith("sk_test_");
+}
+
+/**
+ * Whether the "instant" (no-payment) test deposit is allowed. It needs a test key AND either local development or an
+ * explicit ALLOW_TEST_DEPOSITS=true. Production with a live key can never mint balance, and even a test key accidentally
+ * shipped to production can't, unless that flag is deliberately set.
+ */
+export function testDepositsAllowed(): boolean {
+  if (!isPaystackTestMode()) return false;
+  return process.env.NODE_ENV !== "production" || process.env.ALLOW_TEST_DEPOSITS === "true";
 }
 
 /**

@@ -76,11 +76,19 @@ export async function getSessionUser(): Promise<AuthUser | null> {
   return user && !needsMfa && !suspended ? user : null;
 }
 
+/** Admins must have two-factor set up, unless REQUIRE_ADMIN_MFA is explicitly set to "false". */
+export function adminMfaRequired(): boolean {
+  return process.env.REQUIRE_ADMIN_MFA !== "false";
+}
+
 /**
- * An administrator: flagged admin in the database (or ADMIN_EMAILS env), not suspended,
- * and if two-factor is configured on their account, has completed it.
+ * An administrator: flagged admin in the database (or ADMIN_EMAILS env), not suspended, two-factor completed, and
+ * (by default) two-factor actually enrolled — so a stolen admin password with no second factor can't reach admin.
+ * An admin without a factor is not locked out: they can enrol one on /settings, which is not admin-gated.
  */
 export async function getAdminUser(): Promise<AuthUser | null> {
   const s = await getAuthState();
-  return s.user && s.isAdmin && !s.needsMfa && !s.suspended ? s.user : null;
+  if (!s.user || !s.isAdmin || s.needsMfa || s.suspended) return null;
+  if (adminMfaRequired() && !s.hasMfa) return null;
+  return s.user;
 }

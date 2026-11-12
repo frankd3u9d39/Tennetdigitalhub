@@ -4,7 +4,33 @@ import { NextRequest, NextResponse } from "next/server";
 const PROTECTED_PREFIXES = ["/dashboard", "/wallet", "/history", "/settings", "/verify", "/two-factor", "/admin"];
 const AUTH_PAGES = ["/login", "/signup"];
 
+// CSRF defence for the API: a state-changing request must come from this same site. Browsers always attach an Origin
+// header to cross-site POST/PUT/PATCH/DELETE, so we require Origin's host to match the request host. The Paystack
+// webhook is called server-to-server (no Origin) and is verified by its HMAC signature instead, so it is exempt.
+const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+function csrfBlocked(req: NextRequest): boolean {
+  if (!MUTATING.has(req.method)) return false;
+  if (req.nextUrl.pathname.startsWith("/api/webhooks/")) return false;
+  const origin = req.headers.get("origin");
+  const host = req.headers.get("host");
+  try {
+    return !(origin && host && new URL(origin).host === host);
+  } catch {
+    return true;
+  }
+}
+
 export async function proxy(req: NextRequest) {
+  // API requests only need the same-origin check; they re-verify the session themselves and don't use the page
+  // redirect logic below, so handle and return early (keeps the Supabase round-trip off every API call).
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    if (csrfBlocked(req)) {
+      return NextResponse.json({ error: "Cross-site request refused." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+    }
+    return NextResponse.next({ request: req });
+  }
+
   let res = NextResponse.next({ request: req });
 
   const supabase = createServerClient(
@@ -62,6 +88,7 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/api/:path*",
     "/dashboard/:path*",
     "/wallet/:path*",
     "/history/:path*",
