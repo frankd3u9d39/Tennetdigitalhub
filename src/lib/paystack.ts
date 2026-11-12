@@ -120,6 +120,11 @@ export interface TransferOutcome {
   status: string; // success | pending | otp | failed
 }
 
+/** Looks a transfer up by our reference; used to confirm a webhook before settling. */
+export async function verifyTransfer(reference: string): Promise<TransferOutcome> {
+  return call<TransferOutcome>("GET", `/transfer/verify/${encodeURIComponent(reference)}`);
+}
+
 /** Initiates a transfer from your Paystack merchant balance to a customer's bank account. */
 export async function initiateTransfer(input: {
   amountKobo: number;

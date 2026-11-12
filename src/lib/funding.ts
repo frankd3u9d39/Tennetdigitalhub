@@ -8,8 +8,11 @@ import {
   verifyTransaction,
   createTransferRecipient,
   initiateTransfer,
+  resolveAccountName,
+  verifyTransfer,
   type PaystackTransaction,
 } from "./paystack";
+import { bankCodeFor } from "./banks";
 
 export class FundingError extends Error {
   constructor(message: string, public status = 400) {
@@ -157,6 +160,9 @@ export async function handlePaystackWebhook(rawBody: string, signature: string |
   } catch {
     return 400;
   }
+  if (event.event?.startsWith("transfer.") && event.data?.reference) {
+    return settleWithdrawalFromWebhook(event.data.reference);
+  }
   if (event.event !== "charge.success" || !event.data?.reference) return 200; // not an event we act on
 
   const reference = event.data.reference;
@@ -244,73 +250,140 @@ export async function withdrawFunds(email: string, input: {
     throw new FundingError("Please provide the account name.");
   }
 
+  const live = !isPaystackTestMode();
+  // The server picks the bank code from the bank name; a client-sent code is only a fallback for unlisted banks.
+  const bankCode = bankCodeFor(bankName) ?? (input.bankCode?.trim() || undefined);
+  let payeeName = accountName.trim();
+
+  // Live: confirm the account exists before touching the wallet, and use the name the bank reports.
+  if (live) {
+    if (!bankCode) throw new FundingError("This bank isn't supported for withdrawals yet.");
+    try {
+      const resolved = await resolveAccountName(cleanAcc, bankCode);
+      payeeName = resolved.account_name || payeeName;
+    } catch {
+      throw new FundingError("We couldn't verify that account number with the selected bank. Check both and try again.");
+    }
+  }
+
   const account = await getAccount(email);
+  const reference = `TDW${Date.now().toString(36)}${randomBytes(4).toString("hex")}`.toUpperCase();
+  const detail = `Withdrawal to ${bankName.trim()} (${cleanAcc}) · ${payeeName}`;
+
+  // 1) Debit the wallet and record the withdrawal (pending in live mode) in one transaction.
   const client = await pool.connect();
+  let newBalance: number;
   try {
     await client.query("begin");
-    const walletRes = await client.query(
-      `select id, balance from public.wallets where user_id = $1 for update`,
-      [account.userId]
-    );
-    const currentBalance = Number(walletRes.rows[0]?.balance ?? 0);
-    if (currentBalance < amountNaira) {
-      throw new FundingError(`Insufficient balance. You have ₦${currentBalance.toLocaleString()} available.`);
-    }
-
     const updated = await client.query(
       `update public.wallets set balance = balance - $2 where user_id = $1 and balance >= $2 returning balance`,
       [account.userId, amountNaira]
     );
     if (updated.rowCount === 0) {
-      throw new FundingError("Insufficient balance.");
+      const bal = await client.query(`select balance from public.wallets where user_id = $1`, [account.userId]);
+      throw new FundingError(`Insufficient balance. You have ₦${Number(bal.rows[0]?.balance ?? 0).toLocaleString()} available.`);
     }
-    const newBalance = Number(updated.rows[0].balance);
-
-    const reference = `TDW${Date.now().toString(36)}${randomBytes(4).toString("hex")}`.toUpperCase();
-    const detail = `Withdrawal to ${bankName.trim()} (${cleanAcc}) · ${accountName.trim()}`;
-
-    // In live mode with real keys: initiate actual interbank transfer through Paystack
-    let paystackTransferCode: string | undefined;
-    if (!isPaystackTestMode() && input.bankCode) {
-      try {
-        const recipient = await createTransferRecipient({
-          name: accountName.trim(),
-          accountNumber: cleanAcc,
-          bankCode: input.bankCode,
-        });
-        const transfer = await initiateTransfer({
-          amountKobo: amountNaira * 100,
-          recipientCode: recipient.recipient_code,
-          reason: `Wallet withdrawal for ${email}`,
-          reference,
-        });
-        paystackTransferCode = transfer.transfer_code;
-      } catch (paystackErr) {
-        await client.query("rollback").catch(() => {});
-        throw new FundingError(
-          paystackErr instanceof Error ? paystackErr.message : "Paystack transfer could not be initiated."
-        );
-      }
-    }
-
+    newBalance = Number(updated.rows[0].balance);
     await client.query(
       `insert into public.ledger_entries (user_id, label, detail, amount, direction, status, reference, provider)
-       values ($1, 'Wallet withdrawal', $2, $3, 'debit', 'successful', $4, 'paystack')`,
-      [account.userId, detail, amountNaira, reference]
+       values ($1, 'Wallet withdrawal', $2, $3, 'debit', $4, $5, 'paystack')`,
+      [account.userId, detail, amountNaira, live ? "pending" : "successful", reference]
     );
-
     await client.query("commit");
-    return {
-      reference,
-      transferCode: paystackTransferCode,
-      amountNaira,
-      newBalance,
-      detail,
-    };
-
   } catch (err) {
     await client.query("rollback").catch(() => {});
     throw err;
+  } finally {
+    client.release();
+  }
+
+  if (!live) {
+    return { reference, amountNaira, newBalance, detail, accountName: payeeName, status: "successful" as const };
+  }
+
+  // 2) Live: send the money through Paystack. If Paystack refuses, put the money back in the wallet.
+  try {
+    const recipient = await createTransferRecipient({ name: payeeName, accountNumber: cleanAcc, bankCode: bankCode! });
+    const transfer = await initiateTransfer({
+      amountKobo: amountNaira * 100,
+      recipientCode: recipient.recipient_code,
+      reason: "Tennet wallet withdrawal",
+      reference,
+    });
+    if (transfer.status === "otp") {
+      throw new Error("Paystack is asking for an OTP for transfers. Turn off 'Confirm transfers with OTP' in Paystack Settings → Preferences.");
+    }
+    if (transfer.status === "failed" || transfer.status === "reversed") {
+      throw new Error(`Paystack reported the transfer as ${transfer.status}.`);
+    }
+    const status = transfer.status === "success" ? "successful" : "pending";
+    await pool.query(`update public.ledger_entries set status = $2, provider_ref = $3 where reference = $1`, [
+      reference,
+      status,
+      transfer.transfer_code,
+    ]);
+    return { reference, transferCode: transfer.transfer_code, amountNaira, newBalance, detail, accountName: payeeName, status };
+  } catch (err) {
+    const why = err instanceof Error ? err.message : "Paystack transfer could not be initiated.";
+    console.error(`[withdrawal] ${reference} failed, refunding:`, why);
+    await refundWithdrawal(account.userId, reference, amountNaira, why);
+    throw new FundingError(`Withdrawal failed and your ₦${amountNaira.toLocaleString()} was returned to your wallet. ${why}`, 502);
+  }
+}
+
+/**
+ * Step 5: Paystack's transfer.success / transfer.failed / transfer.reversed webhook. The event body is only a hint:
+ * we re-fetch the transfer from Paystack and settle our ledger row from that. Returns the HTTP status to answer with.
+ */
+async function settleWithdrawalFromWebhook(reference: string): Promise<number> {
+  const row = (
+    await pool.query(
+      `select user_id, amount, status from public.ledger_entries
+       where reference = $1 and label = 'Wallet withdrawal' and provider = 'paystack'`,
+      [reference]
+    )
+  ).rows[0];
+  if (!row) return 200; // not one of ours
+
+  try {
+    const transfer = await verifyTransfer(reference);
+    if (transfer.status === "success") {
+      await pool.query(
+        `update public.ledger_entries set status = 'successful', provider_ref = coalesce(provider_ref, $2)
+         where reference = $1 and status = 'pending'`,
+        [reference, transfer.transfer_code]
+      );
+    } else if (transfer.status === "failed" || transfer.status === "reversed") {
+      await refundWithdrawal(row.user_id, reference, Number(row.amount), `Paystack reported the transfer as ${transfer.status}.`);
+    }
+    // pending / processing / queued: wait for the next event.
+    return 200;
+  } catch (err) {
+    console.error(`[withdrawal] webhook settle failed for ${reference}:`, err instanceof Error ? err.message : err);
+    return 500; // Paystack retries
+  }
+}
+
+/**
+ * Puts a failed withdrawal's money back, exactly once: a row that is already 'failed' is never refunded again.
+ * A 'successful' row can still be refunded, because Paystack may reverse a transfer after it succeeded.
+ */
+async function refundWithdrawal(userId: string, reference: string, amountNaira: number, why: string) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const row = await client.query(
+      `update public.ledger_entries set status = 'failed', result = jsonb_build_object('error', $2::text)
+       where reference = $1 and status in ('pending', 'successful') returning id`,
+      [reference, why]
+    );
+    if (row.rowCount) {
+      await client.query(`update public.wallets set balance = balance + $2 where user_id = $1`, [userId, amountNaira]);
+    }
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback").catch(() => {});
+    console.error(`[withdrawal] REFUND FAILED for ${reference}:`, err);
   } finally {
     client.release();
   }

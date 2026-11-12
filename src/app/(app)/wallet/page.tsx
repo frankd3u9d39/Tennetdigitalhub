@@ -19,24 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { formatNaira, formatDate } from "@/lib/format";
 import { useWallet } from "@/lib/wallet";
-
-const DEFAULT_BANKS = [
-  { name: "Access Bank", code: "044" },
-  { name: "Guaranty Trust Bank (GTBank)", code: "058" },
-  { name: "Zenith Bank", code: "057" },
-  { name: "First Bank of Nigeria", code: "011" },
-  { name: "United Bank for Africa (UBA)", code: "033" },
-  { name: "OPay", code: "999992" },
-  { name: "PalmPay", code: "999991" },
-  { name: "Moniepoint MFB", code: "50515" },
-  { name: "Kuda Bank", code: "50211" },
-  { name: "Fidelity Bank", code: "070" },
-  { name: "Stanbic IBTC Bank", code: "221" },
-  { name: "Sterling Bank", code: "232" },
-  { name: "First City Monument Bank (FCMB)", code: "214" },
-  { name: "Union Bank of Nigeria", code: "032" },
-  { name: "Wema Bank (ALAT)", code: "035" },
-];
+import { WITHDRAWAL_BANKS as DEFAULT_BANKS, bankCodeFor } from "@/lib/banks";
 
 export default function WalletPage() {
   return (
@@ -75,6 +58,37 @@ function WalletContent() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
   const [withdrawSuccess, setWithdrawSuccess] = useState("");
+  // Step 2: the bank's own name for the account, looked up via Paystack once bank + 10 digits are entered.
+  // The lookup result is keyed by bank code + number, so a result for a previous bank/number is never shown.
+  const [lookup, setLookup] = useState<{ key: string; name?: string; error?: string } | null>(null);
+  const bankCode = banks.find((b) => b.name === selectedBank)?.code;
+  const lookupKey = bankCode && accountNumber.length === 10 ? `${bankCode}:${accountNumber}` : "";
+  const current = lookup && lookup.key === lookupKey ? lookup : null;
+  const verifiedName = current?.name ?? "";
+  const verifyError = current?.error ?? "";
+  const verifying = lookupKey !== "" && !current;
+
+  useEffect(() => {
+    if (!lookupKey) return;
+    const [code, number] = lookupKey.split(":");
+    const ctrl = new AbortController();
+    fetch(`/api/wallet/resolve-account?accountNumber=${number}&bankCode=${encodeURIComponent(code)}`, {
+      signal: ctrl.signal,
+    })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.accountName) throw new Error("Account not found at this bank. Check the number and bank.");
+        setLookup({ key: lookupKey, name: data.accountName });
+      })
+      .catch((err) => {
+        if (ctrl.signal.aborted) return;
+        setLookup({ key: lookupKey, error: err instanceof Error ? err.message : "Could not verify account." });
+      });
+    return () => ctrl.abort();
+  }, [lookupKey]);
+
+  // Live mode needs a bank-verified name; test mode falls back to a typed name (Paystack test resolves are limited).
+  const accountReady = verifiedName !== "" || (isTestMode && !verifying && accountName.trim() !== "");
 
   useEffect(() => {
     // Check if Paystack is running in test mode
@@ -165,8 +179,9 @@ function WalletContent() {
       setWithdrawError("Please select a destination bank.");
       return;
     }
-    if (!accountName.trim()) {
-      setWithdrawError("Please enter the recipient account name.");
+    const payeeName = (verifiedName || accountName).trim();
+    if (!accountReady || !payeeName) {
+      setWithdrawError("Please wait for the account to be verified.");
       return;
     }
 
@@ -181,15 +196,18 @@ function WalletContent() {
         body: JSON.stringify({
           amountNaira: withdrawValue,
           bankName: selectedBank,
+          bankCode: bankCodeFor(selectedBank),
           accountNumber: accountNumber.replace(/\D/g, ""),
-          accountName: accountName.trim(),
+          accountName: payeeName,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Withdrawal failed.");
 
       setWithdrawSuccess(
-        `Withdrawal of ${formatNaira(withdrawValue)} to ${selectedBank} was submitted successfully! (Ref: ${data.reference})`
+        data.status === "successful"
+          ? `${formatNaira(withdrawValue)} sent to ${data.accountName ?? selectedBank} (${selectedBank}). Ref: ${data.reference}`
+          : `Withdrawal of ${formatNaira(withdrawValue)} to ${selectedBank} is processing. Ref: ${data.reference}`
       );
       setWithdrawAmount("");
       setAccountNumber("");
@@ -418,26 +436,45 @@ function WalletContent() {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label htmlFor="account-name" className="text-[12.5px] font-medium text-ink-muted">
-                      Account holder name
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="account-name" className="text-[12.5px] font-medium text-ink-muted">
+                        Account holder name
+                      </label>
+                      {verifying && <span className="text-[11px] text-ink-faint">Verifying account…</span>}
+                      {verifiedName && (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-500">
+                          <CheckCircle2 size={12} /> Verified by bank
+                        </span>
+                      )}
+                    </div>
                     <input
                       id="account-name"
-                      value={accountName}
+                      value={verifiedName || (isTestMode ? accountName : "")}
+                      readOnly={!!verifiedName || !isTestMode}
                       onChange={(e) => setAccountName(e.target.value)}
-                      placeholder="e.g. IBEH PROMISE"
-                      className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent"
+                      placeholder={isTestMode ? "e.g. IBEH PROMISE" : "Filled in automatically from the bank"}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-canvas px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint focus:border-accent read-only:cursor-not-allowed read-only:font-medium"
                     />
+                    {verifyError && (
+                      <p className="mt-1 text-[11px] text-danger">
+                        {verifyError}
+                        {isTestMode && " (Test mode: you can type the name manually.)"}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="pt-2">
                   <Button
                     type="submit"
-                    disabled={withdrawing || !validWithdrawAmount || !selectedBank || accountNumber.length !== 10}
+                    disabled={withdrawing || !validWithdrawAmount || !selectedBank || accountNumber.length !== 10 || !accountReady}
                   >
                     {withdrawing
                       ? "Processing withdrawal…"
+                      : verifying
+                      ? "Verifying account…"
+                      : validWithdrawAmount && selectedBank && accountNumber.length === 10 && !accountReady
+                      ? "Verify account to continue"
                       : validWithdrawAmount
                       ? `Withdraw ${formatNaira(withdrawValue)}`
                       : "Enter amount and bank"}
