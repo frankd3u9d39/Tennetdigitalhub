@@ -287,7 +287,8 @@ async function beginCharge(input: {
 async function refundCharge(c: Charge, message: string, status: number, provider: ProviderName = "checkmyninbvn", notFound = false): Promise<never> {
   await settle(c.reference, "failed", { provider });
   await recordAttempt(c, { subjectName: null, status: "failed", cost: 0 }).catch(() => {});
-  throw new IdentityError(notFound ? message : `${message} You were not charged.`, status);
+  const sentence = /[.!?]$/.test(message.trim()) ? message.trim() : `${message.trim()}.`;
+  throw new IdentityError(notFound ? sentence : `${sentence} You were not charged.`, status);
 }
 
 /** Maps a provider answer that is NOT a delivered result to a refund. Never logs the number or the response body. */
@@ -301,7 +302,11 @@ async function failFromReply(c: Charge, reply: Reply, provider: ProviderName = "
   if ([401, 402, 403, 429].includes(reply.status) || /insufficient|balance/i.test(message)) {
     return refundCharge(c, "Verification is temporarily unavailable.", 503, provider);
   }
-  if (reply.status === 400) return refundCharge(c, message || "The provider couldn't verify this number.", 400, provider);
+  if (reply.status === 400 && (!message || /^verification failed\.?$/i.test(message.trim()))) {
+    // The provider's bare "Verification failed": the registry couldn't verify this number (wrong number or a registry hiccup).
+    return refundCharge(c, `This ${c.type.toUpperCase()} couldn't be verified. Check the number and try again in a few minutes`, 400, provider);
+  }
+  if (reply.status === 400) return refundCharge(c, message, 400, provider);
   return refundCharge(c, "We couldn't complete the verification. Please try again.", 503, provider);
 }
 
