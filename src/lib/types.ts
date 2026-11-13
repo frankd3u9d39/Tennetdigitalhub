@@ -1,5 +1,5 @@
 export type ServiceCategory = "vtu" | "verification" | "modification" | "registration";
-export type ServiceFlow = "lookup" | "vtu" | "request" | "modification" | "retrieval" | "cac" | "exam";
+export type ServiceFlow = "lookup" | "vtu" | "request" | "modification" | "retrieval" | "demography" | "cac" | "exam";
 
 export interface ServiceItem {
   slug: string;

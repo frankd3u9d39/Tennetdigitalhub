@@ -13,16 +13,16 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as {
     type?: string;
     query?: string;
+    demographics?: { firstname?: string; lastname?: string; gender?: string; dob?: string };
     consent?: boolean;
   } | null;
 
-  if (!body || !body.type || !body.query) {
-    return NextResponse.json({ error: "Missing required retrieval parameters." }, { status: 400, headers: NO_STORE });
-  }
-
-  const validTypes: RetrievalType[] = ["bvn_phone", "nin_phone", "nin_tracking"];
-  if (!validTypes.includes(body.type as RetrievalType)) {
+  const validTypes: RetrievalType[] = ["bvn_phone", "nin_phone", "nin_tracking", "nin_demography"];
+  if (!body || !body.type || !validTypes.includes(body.type as RetrievalType)) {
     return NextResponse.json({ error: "Invalid retrieval type." }, { status: 400, headers: NO_STORE });
+  }
+  if (body.type !== "nin_demography" && !body.query) {
+    return NextResponse.json({ error: "Missing required retrieval parameters." }, { status: 400, headers: NO_STORE });
   }
 
   try {
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       email: user.email,
       type: body.type as RetrievalType,
       query: body.query,
+      demographics: body.demographics,
       consent: body.consent === true,
     });
     return NextResponse.json(result, { headers: NO_STORE });

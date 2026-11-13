@@ -105,6 +105,15 @@ export const services: ServiceItem[] = [
     price: 350,
     icon: "phone",
   },
+  {
+    slug: "nin-demography",
+    name: "NIN demography search",
+    category: "modification",
+    flow: "demography",
+    description: "Find a NIN record by first name, surname, gender and date of birth.",
+    price: 400,
+    icon: "search",
+  },
 
   // Registration services: via AYGlobalData API
   {

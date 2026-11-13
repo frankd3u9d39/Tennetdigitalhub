@@ -9,7 +9,7 @@ export class CheckMyNinBvnError extends Error {
 function getClientConfig() {
   const key = process.env.CHECKMYNINBVN_API_KEY;
   if (!key) throw new CheckMyNinBvnError("CheckMyNINBVN API key is not configured.", 503);
-  const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com/api").replace(/\/+$/, "");
+  const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com.ng/api").replace(/\/+$/, "");
   return { key, base };
 }
 
@@ -67,6 +67,29 @@ export async function searchNinByPhone(phone: string) {
   });
   if (!reply.ok) {
     throw new CheckMyNinBvnError(reply.json?.message || "Failed to search NIN by phone.", reply.status);
+  }
+  return reply.json;
+}
+
+export interface NinDemographyInput {
+  firstname: string;
+  lastname: string;
+  gender: string; // "male" | "female"
+  dob: string; // YYYY-MM-DD
+}
+
+export async function searchNinByDemography(input: NinDemographyInput) {
+  const reply = await request("/nin-demography", {
+    body: {
+      firstname: input.firstname.trim(),
+      lastname: input.lastname.trim(),
+      gender: input.gender.trim().toLowerCase(),
+      dob: input.dob.trim(),
+      consent: true,
+    },
+  });
+  if (!reply.ok) {
+    throw new CheckMyNinBvnError(reply.json?.message || "Failed to search NIN by demographics.", reply.status);
   }
   return reply.json;
 }

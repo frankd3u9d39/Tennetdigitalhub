@@ -7,6 +7,7 @@ import { Topbar } from "@/components/dashboard/Topbar";
 import { BillFlow } from "@/components/bills/BillFlow";
 import { IdentityFlow } from "@/components/identity/IdentityFlow";
 import { RetrievalFlow } from "@/components/identity/RetrievalFlow";
+import { DemographyFlow } from "@/components/identity/DemographyFlow";
 import { ModificationFlow } from "@/components/identity/ModificationFlow";
 import { CacFlow } from "@/components/business/CacFlow";
 import { ExamPinFlow } from "@/components/bills/ExamPinFlow";
@@ -86,6 +87,11 @@ export default function VerifyPage() {
   // Phone / Tracking retrieval flow
   if (service.flow === "retrieval") {
     return <RetrievalFlow service={service} />;
+  }
+
+  // NIN demography search flow (name + gender + DOB)
+  if (service.flow === "demography") {
+    return <DemographyFlow service={service} />;
   }
 
   // NIN Modification / Validation flow

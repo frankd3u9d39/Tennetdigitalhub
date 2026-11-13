@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { pool } from "./pg";
 import { getAccount } from "./db";
 import { settle } from "./bills";
-import { searchBvnByPhone, searchNinByPhone, searchNinByTracking, CheckMyNinBvnError } from "./checkmyninbvn";
+import { searchBvnByPhone, searchNinByPhone, searchNinByTracking, searchNinByDemography, CheckMyNinBvnError, type NinDemographyInput } from "./checkmyninbvn";
 
 export class RetrievalError extends Error {
   constructor(message: string, public status = 400) {
@@ -11,12 +11,14 @@ export class RetrievalError extends Error {
   }
 }
 
-export type RetrievalType = "bvn_phone" | "nin_phone" | "nin_tracking";
+export type RetrievalType = "bvn_phone" | "nin_phone" | "nin_tracking" | "nin_demography";
 
 const RETRIEVAL_CONFIG: Record<RetrievalType, { label: string; price: number; cost: number }> = {
-  bvn_phone: { label: "BVN phone search", price: 300, cost: 150 },
-  nin_phone: { label: "NIN phone search", price: 350, cost: 200 },
+  // `cost` = what CheckMyNINBVN charges us (per the provider dashboard); `price` = what the customer pays.
+  bvn_phone: { label: "BVN phone search", price: 300, cost: 200 },
+  nin_phone: { label: "NIN phone search", price: 350, cost: 250 },
   nin_tracking: { label: "NIN tracking search", price: 350, cost: 200 },
+  nin_demography: { label: "NIN demography search", price: 400, cost: 300 },
 };
 
 function makeReference() {
@@ -28,19 +30,38 @@ const mask = (n: string) => `•••••••${n.slice(-4)}`;
 export async function retrieveIdentity(input: {
   email: string;
   type: RetrievalType;
-  query: string;
+  query?: string;
+  demographics?: Partial<NinDemographyInput>;
   consent: boolean;
 }) {
   const cfg = RETRIEVAL_CONFIG[input.type];
   if (!cfg) throw new RetrievalError("Invalid retrieval type.");
   if (input.consent !== true) throw new RetrievalError("You must confirm the customer's consent.");
 
-  const cleanQuery = input.query.trim();
-  if (!cleanQuery) throw new RetrievalError("Please provide a phone number or tracking ID.");
+  // Demography searches on four fields; the others on one query string (phone or tracking ID).
+  let cleanQuery = "";
+  let demographics: NinDemographyInput | null = null;
+  let maskedQuery: string;
+  if (input.type === "nin_demography") {
+    const firstname = (input.demographics?.firstname ?? "").trim();
+    const lastname = (input.demographics?.lastname ?? "").trim();
+    const gender = (input.demographics?.gender ?? "").trim().toLowerCase();
+    const dob = (input.demographics?.dob ?? "").trim();
+    if (!firstname || !lastname || !gender || !dob) {
+      throw new RetrievalError("Enter first name, surname, gender and date of birth.");
+    }
+    if (gender !== "male" && gender !== "female") throw new RetrievalError("Gender must be male or female.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) throw new RetrievalError("Date of birth must be in YYYY-MM-DD format.");
+    demographics = { firstname, lastname, gender, dob };
+    maskedQuery = `${firstname} ${lastname} · ${dob}`;
+  } else {
+    cleanQuery = (input.query ?? "").trim();
+    if (!cleanQuery) throw new RetrievalError("Please provide a phone number or tracking ID.");
+    maskedQuery = mask(cleanQuery);
+  }
 
   const account = await getAccount(input.email);
   const reference = makeReference();
-  const maskedQuery = mask(cleanQuery);
 
   // 1. Debit wallet atomically
   const client = await pool.connect();
@@ -73,13 +94,16 @@ export async function retrieveIdentity(input: {
 
   // 2. Call CheckMyNINBVN provider
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let result: any;
     if (input.type === "bvn_phone") {
       result = await searchBvnByPhone(cleanQuery);
     } else if (input.type === "nin_phone") {
       result = await searchNinByPhone(cleanQuery);
-    } else {
+    } else if (input.type === "nin_tracking") {
       result = await searchNinByTracking(cleanQuery);
+    } else {
+      result = await searchNinByDemography(demographics!);
     }
 
     const data = result?.data;
