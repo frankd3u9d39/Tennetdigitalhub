@@ -55,8 +55,10 @@ export interface SlipResult {
   tier: SlipTier;
   idNumber: string;
   filename: string;
-  /** The PDF, base64-encoded. Passed straight to the browser; never stored. */
-  pdfBase64: string;
+  /** The slip PDF, base64-encoded (when the provider returns one inline). */
+  pdfBase64?: string;
+  /** A URL to the slip (AYGlobal returns the slip as a link, not base64). */
+  pdfUrl?: string;
   costNaira: number;
 }
 
@@ -112,8 +114,12 @@ async function callCheckMyNinBvn(type: IdentityType, number: string): Promise<Re
   return { status: res.status, json };
 }
 
-/** Calls AYGlobalData verify endpoint (https://ayglobaldata.com/api-docs/#verify-id) */
-async function callAyGlobalVerify(type: IdentityType, number: string, slipType?: string): Promise<Reply> {
+/**
+ * Calls AYGlobalData verify endpoint (https://ayglobaldata.com/api-docs/). The `ref` field is REQUIRED even though
+ * the verify docs omit it — without it the endpoint returns 400 "Required inputs missing". A success returns the
+ * person data and a `pdf_link` (the slip, as a URL — NOT base64).
+ */
+async function callAyGlobalVerify(type: IdentityType, number: string, slipType: string, ref: string): Promise<Reply> {
   const key = process.env.AYGLOBAL_API_KEY;
   if (!key) throw new IdentityError("AYGlobalData is not configured.", 503);
   const base = (process.env.AYGLOBAL_BASE_URL || "https://ayglobaldata.com").replace(/\/+$/, "");
@@ -129,6 +135,7 @@ async function callAyGlobalVerify(type: IdentityType, number: string, slipType?:
       method: type,
       slip_type: slipType || "standard",
       value: number,
+      ref,
     }),
     // 55s: under the lookup route's 60s cap (free plan), leaving time for the refund path to run.
     signal: AbortSignal.timeout(55_000),
@@ -331,8 +338,8 @@ function identityChain(order: string[], disabled: string[]): ProviderName[] {
   return order.filter((p) => !disabled.includes(p) && available(p)) as ProviderName[];
 }
 
-function callProvider(provider: ProviderName, type: IdentityType, number: string): Promise<Reply> {
-  return provider === "ayglobal" ? callAyGlobalVerify(type, number, LOOKUP_SLIP_TYPE) : callCheckMyNinBvn(type, number);
+function callProvider(provider: ProviderName, type: IdentityType, number: string, ref: string): Promise<Reply> {
+  return provider === "ayglobal" ? callAyGlobalVerify(type, number, LOOKUP_SLIP_TYPE, ref) : callCheckMyNinBvn(type, number);
 }
 
 type LookupClass =
@@ -380,7 +387,7 @@ export async function lookupIdentity(input: {
     lastProvider = provider;
     let reply: Reply;
     try {
-      reply = await callProvider(provider, c.type, c.number);
+      reply = await callProvider(provider, c.type, c.number, c.reference);
     } catch {
       console.error(`[identity] ${c.type} lookup: ${provider} unreachable; trying next provider`);
       continue;
@@ -453,7 +460,7 @@ export async function slipIdentity(input: {
   try {
     if (process.env.AYGLOBAL_API_KEY && process.env.AYGLOBAL_ENABLED !== "false") {
       activeProvider = "ayglobal";
-      reply = await callAyGlobalVerify(c.type, c.number, input.tier);
+      reply = await callAyGlobalVerify(c.type, c.number, input.tier, c.reference);
     } else {
       return refundCharge(c, "Slip generation is not configured.", 503, activeProvider);
     }
@@ -464,9 +471,13 @@ export async function slipIdentity(input: {
   const j = reply.json;
   const isOk = reply.status === 200 && (String(j?.status).toLowerCase() === "success" || String(j?.status).toLowerCase() === "successful");
   const b64 = j?.pdf_base64 || j?.data?.pdf_base64 || j?.pdf;
+  // AYGlobal returns the slip as a URL (pdf_link), not base64.
+  const rawUrl = j?.pdf_link || j?.data?.pdf_link || j?.slip_url || j?.data?.slip_url;
+  const pdfUrl = typeof rawUrl === "string" && /^https?:\/\//.test(rawUrl) ? rawUrl : undefined;
+  const hasPdf = looksLikePdf(b64);
 
-  if (isOk && looksLikePdf(b64)) {
-    const providerRef = j?.reportID ? String(j.reportID) : j?.reference ? String(j.reference) : undefined;
+  if (isOk && (hasPdf || pdfUrl)) {
+    const providerRef = j?.transaction_ref ? String(j.transaction_ref) : j?.reportID ? String(j.reportID) : j?.reference ? String(j.reference) : undefined;
     await settle(c.reference, "successful", { provider: activeProvider, providerRef });
     await recordAttempt(c, { subjectName: null, status: "successful", cost: c.price }).catch(() =>
       console.error("[identity] could not save the history record")
@@ -477,7 +488,8 @@ export async function slipIdentity(input: {
       tier: input.tier,
       idNumber: c.masked,
       filename: `${c.type.toUpperCase()}-${input.tier}-slip-${c.number.slice(-4)}.pdf`,
-      pdfBase64: b64,
+      pdfBase64: hasPdf ? (b64 as string) : undefined,
+      pdfUrl,
       costNaira: c.price,
     };
   }

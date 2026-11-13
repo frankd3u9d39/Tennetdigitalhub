@@ -35,7 +35,8 @@ function photoSrc(b64: string) {
 
 interface SlipResponse {
   filename: string;
-  pdfBase64: string;
+  pdfBase64?: string;
+  pdfUrl?: string;
   costNaira: number;
   reference: string;
 }
@@ -84,7 +85,7 @@ export function IdentityFlow({ service }: { service: ServiceItem }) {
   const [tier, setTier] = useState<SlipTier>("standard");
   const [slipPhase, setSlipPhase] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [slipError, setSlipError] = useState("");
-  const [slip, setSlip] = useState<{ url: string; filename: string; costNaira: number } | null>(null);
+  const [slip, setSlip] = useState<{ url: string; filename: string; costNaira: number; external: boolean } | null>(null);
   // The number that was actually looked up: the slip must be for THIS number even if the input box is edited afterwards.
   const [lookedUp, setLookedUp] = useState("");
 
@@ -127,10 +128,20 @@ export function IdentityFlow({ service }: { service: ServiceItem }) {
     setSlipError("");
     try {
       const file = await postJson<SlipResponse>("/api/verify/slip", { type, number: lookedUp, consent, tier, expectedPrice: slipPrice(tier) });
-      const url = pdfBlobUrl(file.pdfBase64);
-      setSlip({ url, filename: file.filename, costNaira: file.costNaira });
-      setSlipPhase("done");
-      saveFile(url, file.filename);
+      if (file.pdfBase64) {
+        // Inline PDF: build a blob and download it.
+        const url = pdfBlobUrl(file.pdfBase64);
+        setSlip({ url, filename: file.filename, costNaira: file.costNaira, external: false });
+        setSlipPhase("done");
+        saveFile(url, file.filename);
+      } else if (file.pdfUrl) {
+        // Provider returned a link to the slip: open it in a new tab.
+        setSlip({ url: file.pdfUrl, filename: file.filename, costNaira: file.costNaira, external: true });
+        setSlipPhase("done");
+        window.open(file.pdfUrl, "_blank", "noopener");
+      } else {
+        throw new Error("The slip couldn't be retrieved. You were not charged.");
+      }
     } catch (err) {
       setSlipError(
         err instanceof TypeError
@@ -146,7 +157,7 @@ export function IdentityFlow({ service }: { service: ServiceItem }) {
   }
 
   function clearSlip() {
-    if (slip) URL.revokeObjectURL(slip.url);
+    if (slip && !slip.external) URL.revokeObjectURL(slip.url);
     setSlip(null);
     setSlipPhase("idle");
     setSlipError("");
@@ -389,20 +400,32 @@ export function IdentityFlow({ service }: { service: ServiceItem }) {
                   {slipPhase === "done" && slip && (
                     <div className="mt-3">
                       <p className="text-[12.5px] text-accent-soft-ink">
-                        Slip ready ({formatNaira(slip.costNaira)}). It should have downloaded to your device.
+                        Slip ready ({formatNaira(slip.costNaira)}).{" "}
+                        {slip.external ? "It opened in a new tab — save or print it from there." : "It should have downloaded to your device."}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => saveFile(slip.url, slip.filename)}>
-                          <Download size={14} />
-                          Download again
-                        </Button>
-                        <Button variant="secondary" size="sm" onClick={() => window.open(slip.url, "_blank")}>
-                          <Printer size={14} />
-                          Open to print
-                        </Button>
+                        {slip.external ? (
+                          <Button variant="secondary" size="sm" onClick={() => window.open(slip.url, "_blank", "noopener")}>
+                            <Printer size={14} />
+                            Open slip
+                          </Button>
+                        ) : (
+                          <>
+                            <Button variant="secondary" size="sm" onClick={() => saveFile(slip.url, slip.filename)}>
+                              <Download size={14} />
+                              Download again
+                            </Button>
+                            <Button variant="secondary" size="sm" onClick={() => window.open(slip.url, "_blank")}>
+                              <Printer size={14} />
+                              Open to print
+                            </Button>
+                          </>
+                        )}
                       </div>
                       <p className="mt-2 text-[11.5px] text-ink-faint">
-                        We don&apos;t keep a copy. Save it now: it disappears when you start a new lookup or leave this page.
+                        {slip.external
+                          ? "Open it now and save a copy — the link may expire later."
+                          : "We don’t keep a copy. Save it now: it disappears when you start a new lookup or leave this page."}
                       </p>
                     </div>
                   )}
