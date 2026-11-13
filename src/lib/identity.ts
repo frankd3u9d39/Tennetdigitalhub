@@ -85,7 +85,8 @@ interface Reply {
 async function callCheckMyNinBvn(type: IdentityType, number: string): Promise<Reply> {
   const key = process.env.CHECKMYNINBVN_API_KEY;
   if (!key) throw new IdentityError("CheckMyNINBVN is not configured.", 503);
-  const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com.ng/api").replace(/\/+$/, "");
+  // Use .com (not .com.ng): both authenticate, but only .com's /nin-verification actually verifies.
+  const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com/api").replace(/\/+$/, "");
   const endpoint = type === "nin" ? `${base}/nin-verification` : `${base}/bvn-verification`;
   const body = type === "nin" ? { nin: number, consent: true } : { bvn: number, consent: true };
 

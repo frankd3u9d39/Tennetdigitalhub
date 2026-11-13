@@ -55,7 +55,7 @@ export const services: ServiceItem[] = [
     category: "verification",
     flow: "lookup",
     description: "Confirm a National Identification Number against demographic records.",
-    price: 150,
+    price: 250,
     icon: "id-badge",
   },
   {
@@ -64,7 +64,7 @@ export const services: ServiceItem[] = [
     category: "verification",
     flow: "lookup",
     description: "Match a Bank Verification Number and pull enrolment details.",
-    price: 170,
+    price: 250,
     icon: "landmark",
   },
 

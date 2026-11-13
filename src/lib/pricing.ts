@@ -75,12 +75,12 @@ export const IDENTITY_PROVIDER_NAMES = ["checkmyninbvn", "ayglobal"] as const;
 
 // Defaults reproduce today's behaviour exactly (no markup), so nothing changes until an admin edits something.
 export const DEFAULT_PRICING: PricingSettings = {
-  identity: { nin: 150, bvn: 170 },
-  slips: { nin: { standard: 150, premium: 170 }, bvn: { standard: 170, premium: 180 } },
-  // What CheckMyNINBVN actually charges us per the provider dashboard (NIN & BVN verification are ₦150 each).
-  // Note: at the ₦150 NIN sell price above this leaves zero margin — raise the NIN price on the admin Pricing page.
+  // Customer-facing prices, set to leave a clear margin over provider cost. Admins can fine-tune on the Pricing page.
+  // Verification costs ₦150 (CheckMyNINBVN) / ₦200 (AYGlobal); slips cost ₦200 (AYGlobal).
+  identity: { nin: 250, bvn: 250 },
+  slips: { nin: { standard: 300, premium: 350 }, bvn: { standard: 300, premium: 350 } },
   identityCost: { nin: 150, bvn: 150 },
-  slipCost: { nin: { standard: 130, premium: 150 }, bvn: { standard: 140, premium: 150 } },
+  slipCost: { nin: { standard: 200, premium: 200 }, bvn: { standard: 200, premium: 200 } },
   markup: {
     airtime: { percent: 0, flat: 0 },
     data: { percent: 0, flat: 0 },

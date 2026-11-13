@@ -9,7 +9,9 @@ export class CheckMyNinBvnError extends Error {
 function getClientConfig() {
   const key = process.env.CHECKMYNINBVN_API_KEY;
   if (!key) throw new CheckMyNinBvnError("CheckMyNINBVN API key is not configured.", 503);
-  const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com.ng/api").replace(/\/+$/, "");
+  // NOTE: use .com, not .com.ng. Both domains authenticate the key, but only .com actually verifies — .com.ng's
+  // /nin-verification returns 400 "Verification failed". Override with CHECKMYNINBVN_BASE_URL if that ever changes.
+  const base = (process.env.CHECKMYNINBVN_BASE_URL || "https://checkmyninbvn.com/api").replace(/\/+$/, "");
   return { key, base };
 }
 
