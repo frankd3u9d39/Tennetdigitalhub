@@ -30,9 +30,9 @@ async function request(endpoint: string, options: { method?: string; body?: unkn
     method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
-    // Keep this well under the API routes' maxDuration so our own refund-on-failure path always runs before the
-    // hosting platform kills a slow request (which would leave the customer charged with no result).
-    signal: AbortSignal.timeout(25_000),
+    // 55s: just under the 60s function cap (Vercel free plan), leaving a few seconds for our own refund-on-failure
+    // to run before the platform kills a slow request (which would otherwise leave the customer charged with no result).
+    signal: AbortSignal.timeout(55_000),
   });
 
   const text = await res.text().catch(() => "");

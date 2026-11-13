@@ -97,9 +97,9 @@ async function callCheckMyNinBvn(type: IdentityType, number: string): Promise<Re
       Accept: "application/json",
     },
     body: JSON.stringify(body),
-    // Under the verify routes' maxDuration (60s) with headroom, so our refund-on-failure always runs before a
+    // 55s: just under the 60s function cap, leaving a few seconds for our refund-on-failure to run before a
     // platform-level timeout could kill the function and leave the customer charged with no result.
-    signal: AbortSignal.timeout(40_000),
+    signal: AbortSignal.timeout(55_000),
   });
   const text = await res.text().catch(() => "");
   let json: unknown = null;
@@ -129,8 +129,8 @@ async function callAyGlobalVerify(type: IdentityType, number: string, slipType?:
       slip_type: slipType || "standard",
       value: number,
     }),
-    // 40s keeps us under the lookup route's 60s budget (and well under the slip route's 90s), so the refund path runs.
-    signal: AbortSignal.timeout(40_000),
+    // 55s: under the lookup route's 60s cap (free plan), leaving time for the refund path to run.
+    signal: AbortSignal.timeout(55_000),
   });
   const text = await res.text().catch(() => "");
   let json: unknown = null;
