@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { formatNaira } from "@/lib/format";
+import { postJson } from "@/lib/http-client";
 import { useWallet } from "@/lib/wallet";
 import type { ServiceItem } from "@/lib/types";
 
@@ -22,6 +23,7 @@ export function RetrievalFlow({ service }: Props) {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
@@ -49,20 +51,11 @@ export function RetrievalFlow({ service }: Props) {
 
     setBusy(true);
     try {
-      const res = await fetch("/api/verify/retrieval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: retrievalType,
-          query: clean,
-          consent: true,
-        }),
+      const data = await postJson<typeof result>("/api/verify/retrieval", {
+        type: retrievalType,
+        query: clean,
+        consent: true,
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Retrieval failed.");
-      }
 
       setResult(data);
       void refresh();

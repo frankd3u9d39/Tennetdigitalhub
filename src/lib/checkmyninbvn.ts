@@ -30,10 +30,13 @@ async function request(endpoint: string, options: { method?: string; body?: unkn
     method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
-    signal: AbortSignal.timeout(60_000),
+    // Keep this well under the API routes' maxDuration so our own refund-on-failure path always runs before the
+    // hosting platform kills a slow request (which would leave the customer charged with no result).
+    signal: AbortSignal.timeout(25_000),
   });
 
   const text = await res.text().catch(() => "");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let json: any = null;
   try {
     json = text ? JSON.parse(text) : null;
