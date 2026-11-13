@@ -47,6 +47,14 @@ export interface ProviderSettings {
   lowBalanceAlert: number;
 }
 
+/** Order and on/off state for the NIN/BVN verification providers, used for failover. */
+export interface IdentityProviderSettings {
+  /** Providers tried in this order; the first that is configured, enabled and not disabled here goes first. */
+  order: string[];
+  /** Providers an admin has switched off (on top of any env-level disable). */
+  disabled: string[];
+}
+
 export interface WithdrawalSettings {
   /**
    * On: every withdrawal waits in the admin queue and an admin sends the money by hand.
@@ -60,7 +68,10 @@ export interface AllSettings {
   services: ServiceFlags;
   providers: ProviderSettings;
   withdrawals: WithdrawalSettings;
+  identityProviders: IdentityProviderSettings;
 }
+
+export const IDENTITY_PROVIDER_NAMES = ["checkmyninbvn", "ayglobal"] as const;
 
 // Defaults reproduce today's behaviour exactly (no markup), so nothing changes until an admin edits something.
 export const DEFAULT_PRICING: PricingSettings = {
@@ -82,6 +93,8 @@ export const DEFAULT_SERVICES: ServiceFlags = { airtime: true, data: true, elect
 export const DEFAULT_PROVIDERS: ProviderSettings = { order: null, disabled: [], lowBalanceAlert: 2000 };
 // Manual by default: Paystack Starter accounts can't pay third parties, so admins pay withdrawals by hand.
 export const DEFAULT_WITHDRAWALS: WithdrawalSettings = { manual: true };
+// CheckMyNINBVN first (cheaper: ₦150 vs ₦200), AYGlobal as automatic fallback.
+export const DEFAULT_IDENTITY_PROVIDERS: IdentityProviderSettings = { order: ["checkmyninbvn", "ayglobal"], disabled: [] };
 
 export const BILL_KINDS: BillKind[] = ["airtime", "data", "electricity", "cable"];
 
@@ -160,6 +173,17 @@ export function validateWithdrawals(input: unknown): { ok: true; value: Withdraw
   const w = input as Record<string, unknown>;
   if (typeof w?.manual !== "boolean") return { ok: false, error: "Manual withdrawals must be on or off." };
   return { ok: true, value: { manual: w.manual } };
+}
+
+export function validateIdentityProviders(input: unknown): { ok: true; value: IdentityProviderSettings } | { ok: false; error: string } {
+  const p = input as IdentityProviderSettings;
+  const known = (l: unknown): l is string[] =>
+    Array.isArray(l) && l.every((x) => typeof x === "string" && (IDENTITY_PROVIDER_NAMES as readonly string[]).includes(x));
+  if (!known(p?.order) || new Set(p.order).size !== p.order.length) {
+    return { ok: false, error: "Provider order must list each known identity provider at most once." };
+  }
+  if (!known(p?.disabled)) return { ok: false, error: "Disabled providers must be a list of known identity providers." };
+  return { ok: true, value: { order: p.order, disabled: [...new Set(p.disabled)] } };
 }
 
 /** Deep-merges stored settings over the defaults, so a missing field never breaks pricing. */

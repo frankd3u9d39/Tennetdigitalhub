@@ -5,10 +5,12 @@ import {
   DEFAULT_PROVIDERS,
   DEFAULT_SERVICES,
   DEFAULT_WITHDRAWALS,
+  DEFAULT_IDENTITY_PROVIDERS,
   validatePricing,
   validateProviders,
   validateServices,
   validateWithdrawals,
+  validateIdentityProviders,
   withDefaults,
   type AllSettings,
 } from "./pricing";
@@ -17,8 +19,8 @@ import {
 // Cached briefly in memory so a payment doesn't wait on a settings query; an admin's change reaches every server
 // instance within CACHE_MS.
 
-export type SettingsKey = "pricing" | "services" | "providers" | "withdrawals";
-export const SETTINGS_KEYS: SettingsKey[] = ["pricing", "services", "providers", "withdrawals"];
+export type SettingsKey = "pricing" | "services" | "providers" | "withdrawals" | "identityProviders";
+export const SETTINGS_KEYS: SettingsKey[] = ["pricing", "services", "providers", "withdrawals", "identityProviders"];
 
 const CACHE_MS = 15_000;
 let cache: { at: number; value: AllSettings } | null = null;
@@ -36,6 +38,7 @@ export async function getSettings(): Promise<AllSettings> {
     services: withDefaults(DEFAULT_SERVICES, stored.services),
     providers: withDefaults(DEFAULT_PROVIDERS, stored.providers),
     withdrawals: withDefaults(DEFAULT_WITHDRAWALS, stored.withdrawals),
+    identityProviders: withDefaults(DEFAULT_IDENTITY_PROVIDERS, stored.identityProviders),
   };
   cache = { at: Date.now(), value };
   return value;
@@ -71,7 +74,9 @@ export async function saveSettings(key: SettingsKey, input: unknown, adminEmail:
         ? validateServices(input)
         : key === "withdrawals"
           ? validateWithdrawals(input)
-          : validateProviders(input);
+          : key === "identityProviders"
+            ? validateIdentityProviders(input)
+            : validateProviders(input);
   if (!result.ok) throw new Error(result.error);
 
   const before = (await getSettings())[key];

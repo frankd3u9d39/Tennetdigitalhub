@@ -21,13 +21,18 @@ const PROVIDERS: { key: string; label: string; hint: string }[] = [
   { key: "vtugate", label: "VTUGate", hint: "Airtime, data, electricity, cable" },
 ];
 
+const ID_PROVIDERS: { key: string; label: string; hint: string }[] = [
+  { key: "checkmyninbvn", label: "CheckMyNINBVN", hint: "NIN & BVN verification (₦150) + phone/tracking/demography" },
+  { key: "ayglobal", label: "AYGlobalData", hint: "NIN & BVN verification (₦200) + slips" },
+];
+
 export default function ServicesPage() {
   const { data, error, loading, reload } = useAdminData<AllSettings>("/api/admin/settings");
   const [busy, setBusy] = useState("");
   const [saveError, setSaveError] = useState("");
   const [alertDraft, setAlertDraft] = useState<number | null>(null);
 
-  const save = async (key: "services" | "providers" | "withdrawals", value: unknown, tag: string) => {
+  const save = async (key: "services" | "providers" | "withdrawals" | "identityProviders", value: unknown, tag: string) => {
     setBusy(tag);
     setSaveError("");
     try {
@@ -60,6 +65,20 @@ export default function ServicesPage() {
   const setProviderOn = (key: string, on: boolean) => {
     const disabled = on ? data.providers.disabled.filter((d) => d !== key) : [...new Set([...data.providers.disabled, key])];
     void save("providers", { ...data.providers, disabled }, key);
+  };
+
+  const idOrder = (data.identityProviders.order ?? ID_PROVIDERS.map((p) => p.key)).filter((k) => ID_PROVIDERS.some((p) => p.key === k));
+  const idMove = (key: string, delta: number) => {
+    const next = [...idOrder];
+    const i = next.indexOf(key);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= next.length) return;
+    [next[i], next[j]] = [next[j], next[i]];
+    void save("identityProviders", { ...data.identityProviders, order: next }, "idorder");
+  };
+  const setIdProviderOn = (key: string, on: boolean) => {
+    const disabled = on ? data.identityProviders.disabled.filter((d) => d !== key) : [...new Set([...data.identityProviders.disabled, key])];
+    void save("identityProviders", { ...data.identityProviders, disabled }, `id-${key}`);
   };
 
   return (
@@ -103,6 +122,40 @@ export default function ServicesPage() {
                 onChange={(v) => save("withdrawals", { manual: v }, "withdrawals")}
               />
             </div>
+          </Card>
+        </div>
+
+        <div>
+          <h2 className="font-display text-[19px] text-ink">NIN / BVN verification providers</h2>
+          <p className="mb-3 mt-1 text-[13px] text-ink-muted">
+            NIN &amp; BVN verifications try the first provider that is on. If it is unreachable, errors, or is out of balance, the next one is tried automatically. A clean &ldquo;no record found&rdquo; stops there and refunds — the other provider is not tried. (Slips use AYGlobal only; phone, tracking &amp; demography use CheckMyNINBVN only.)
+          </p>
+          <Card className="divide-y divide-border">
+            {idOrder.map((key, i) => {
+              const p = ID_PROVIDERS.find((x) => x.key === key);
+              if (!p) return null;
+              const on = !data.identityProviders.disabled.includes(key);
+              return (
+                <div key={key} className="flex items-center justify-between gap-4 p-4">
+                  <div className="flex items-center gap-3">
+                    <Badge>{i + 1}</Badge>
+                    <div>
+                      <p className="text-[14px] text-ink">{p.label}</p>
+                      <p className="text-[12px] text-ink-faint">{p.hint}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" aria-label={`Move ${p.label} up`} disabled={i === 0 || busy === "idorder"} onClick={() => idMove(key, -1)} className="rounded-md border border-border p-1.5 text-ink-muted hover:text-ink disabled:opacity-30">
+                      <ArrowUp size={14} />
+                    </button>
+                    <button type="button" aria-label={`Move ${p.label} down`} disabled={i === idOrder.length - 1 || busy === "idorder"} onClick={() => idMove(key, 1)} className="rounded-md border border-border p-1.5 text-ink-muted hover:text-ink disabled:opacity-30">
+                      <ArrowDown size={14} />
+                    </button>
+                    <Toggle label={`${p.label} enabled`} on={on} disabled={busy === `id-${key}`} onChange={(v) => setIdProviderOn(key, v)} />
+                  </div>
+                </div>
+              );
+            })}
           </Card>
         </div>
 

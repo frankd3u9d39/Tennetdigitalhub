@@ -313,6 +313,51 @@ async function failFromReply(c: Charge, reply: Reply, provider: ProviderName = "
   return refundCharge(c, "We couldn't complete the verification. Please try again.", 503, provider);
 }
 
+// What each provider actually charges us per verification (used to record the real cost of the one that delivered).
+const PROVIDER_IDENTITY_COST: Record<string, Record<IdentityType, number>> = {
+  checkmyninbvn: { nin: 150, bvn: 150 },
+  ayglobal: { nin: 200, bvn: 200 },
+};
+
+/** Available verification providers, in the admin's order: configured (env key), env-enabled, and not admin-disabled. */
+function identityChain(order: string[], disabled: string[]): ProviderName[] {
+  const available = (p: string) =>
+    p === "checkmyninbvn"
+      ? Boolean(process.env.CHECKMYNINBVN_API_KEY) && process.env.CHECKMYNINBVN_ENABLED !== "false"
+      : p === "ayglobal"
+        ? Boolean(process.env.AYGLOBAL_API_KEY) && process.env.AYGLOBAL_ENABLED !== "false"
+        : false;
+  return order.filter((p) => !disabled.includes(p) && available(p)) as ProviderName[];
+}
+
+function callProvider(provider: ProviderName, type: IdentityType, number: string): Promise<Reply> {
+  return provider === "ayglobal" ? callAyGlobalVerify(type, number, LOOKUP_SLIP_TYPE) : callCheckMyNinBvn(type, number);
+}
+
+type LookupClass =
+  | { kind: "ok"; data: Obj; providerRef?: string }
+  | { kind: "notfound" }
+  | { kind: "techfail"; status: number; message: string };
+
+/** Delivered result, a clean "no record", or a technical failure we should fail over from. */
+function classifyLookup(reply: Reply): LookupClass {
+  const j = reply.json;
+  const isOk = reply.status === 200 && ["success", "successful"].includes(String(j?.status).toLowerCase());
+  const data = isOk ? findPersonRecord(j) : null;
+  if (isOk && data) {
+    const providerRef = j?.reportID ? String(j.reportID) : j?.reference ? String(j.reference) : undefined;
+    return { kind: "ok", data, providerRef };
+  }
+  if (isOk && !data) {
+    // "Success" but no person details: treat as a technical failure (fail over). Log the key layout only, never values.
+    console.error(`[identity] provider said success but no person data found. Response keys: ${keyLayout(j)}`);
+    return { kind: "techfail", status: 502, message: "blank success" };
+  }
+  const message = String(j?.error ?? j?.message ?? j?.msg ?? "");
+  if (reply.status === 400 && /no record|not found|does not exist/i.test(message)) return { kind: "notfound" };
+  return { kind: "techfail", status: reply.status, message };
+}
+
 export async function lookupIdentity(input: {
   email: string;
   type: IdentityType;
@@ -321,69 +366,71 @@ export async function lookupIdentity(input: {
   expectedPrice?: unknown;
 }): Promise<IdentityResult> {
   const c = await beginCharge({ ...input, kind: "lookup" });
+  const settings = await getSettings();
+  const chain = identityChain(settings.identityProviders.order, settings.identityProviders.disabled);
+  if (chain.length === 0) {
+    return refundCharge(c, "No identity verification provider is available right now.", 503, "checkmyninbvn");
+  }
 
-  let reply: Reply;
-  let activeProvider: ProviderName = "checkmyninbvn";
-
-  try {
-    if (process.env.CHECKMYNINBVN_API_KEY && process.env.CHECKMYNINBVN_ENABLED !== "false") {
-      activeProvider = "checkmyninbvn";
-      reply = await callCheckMyNinBvn(c.type, c.number);
-    } else if (process.env.AYGLOBAL_API_KEY && process.env.AYGLOBAL_ENABLED !== "false") {
-      activeProvider = "ayglobal";
-      reply = await callAyGlobalVerify(c.type, c.number, LOOKUP_SLIP_TYPE);
-    } else {
-      return refundCharge(c, "No identity verification provider configured.", 503, activeProvider);
+  // Try each provider in order. Deliver on the first success; STOP and refund on a clean "no record"; fail over to
+  // the next provider on any technical failure (unreachable, error, blank "success", out of balance).
+  let lastProvider: ProviderName = chain[0];
+  for (const provider of chain) {
+    lastProvider = provider;
+    let reply: Reply;
+    try {
+      reply = await callProvider(provider, c.type, c.number);
+    } catch {
+      console.error(`[identity] ${c.type} lookup: ${provider} unreachable; trying next provider`);
+      continue;
     }
-  } catch {
-    return refundCharge(c, "We couldn't complete the verification. Please try again.", 503, activeProvider);
+    const outcome = classifyLookup(reply);
+    if (outcome.kind === "ok") return deliverLookup(c, provider, outcome.data, outcome.providerRef);
+    if (outcome.kind === "notfound") {
+      return refundCharge(c, `No matching record was found for this ${c.type.toUpperCase()}. You were not charged.`, 404, provider, true);
+    }
+    console.error(`[identity] ${c.type} lookup not delivered by ${provider} (HTTP ${outcome.status}); failing over if another provider remains`);
   }
+  // Every available provider failed technically.
+  return refundCharge(c, "Verification is temporarily unavailable. Please try again shortly.", 503, lastProvider);
+}
 
-  const j = reply.json;
-  const isOk = reply.status === 200 && (String(j?.status).toLowerCase() === "success" || String(j?.status).toLowerCase() === "successful");
-  const data = isOk ? findPersonRecord(j) : null;
+async function deliverLookup(c: Charge, provider: ProviderName, data: Obj, providerRef?: string): Promise<IdentityResult> {
+  const firstName = pick(data, "firstname", "first_name", "firstName", "given_name");
+  const middleName = pick(data, "middlename", "middle_name", "middleName", "othername", "other_names");
+  const lastName = pick(data, "surname", "lastname", "last_name", "lastName", "family_name");
+  const fullName =
+    [firstName, middleName, lastName].filter(Boolean).join(" ") || pick(data, "fullname", "full_name", "fullName", "name");
+  const dob = pick(data, "birthdate", "dob", "birth_date", "dateOfBirth", "date_of_birth");
+  const gender = pick(data, "gender", "sex");
+  const phone = pick(data, "telephoneno", "phone", "phone_number", "phoneNumber", "mobile", "telephone");
+  const rawPhoto = pick(data, "photo", "image", "picture", "photograph");
+  const photo = rawPhoto.length > 0 ? rawPhoto : null;
 
-  if (isOk && !data) {
-    // "Success" but no person details: never charge for a blank result. Log only the key layout, never values.
-    console.error(`[identity] ${c.type} lookup: provider said success but no name found. Response keys: ${keyLayout(j)}`);
-    return refundCharge(c, "The provider returned no details for this number.", 502, activeProvider);
+  await settle(c.reference, "successful", { provider, providerRef });
+  // Record what the delivering provider actually costs us (differs between providers).
+  const cost = PROVIDER_IDENTITY_COST[provider]?.[c.type];
+  if (cost !== undefined) {
+    await pool.query(`update public.ledger_entries set cost_amount = $2 where reference = $1`, [c.reference, cost]).catch(() => {});
   }
+  await recordAttempt(c, { subjectName: fullName || null, status: "successful", cost: c.price }).catch(() =>
+    console.error("[identity] could not save the history record")
+  );
 
-  if (isOk && data) {
-    const firstName = pick(data, "firstname", "first_name", "firstName", "given_name");
-    const middleName = pick(data, "middlename", "middle_name", "middleName", "othername", "other_names");
-    const lastName = pick(data, "surname", "lastname", "last_name", "lastName", "family_name");
-    const fullName =
-      [firstName, middleName, lastName].filter(Boolean).join(" ") || pick(data, "fullname", "full_name", "fullName", "name");
-    const dob = pick(data, "birthdate", "dob", "birth_date", "dateOfBirth", "date_of_birth");
-    const gender = pick(data, "gender", "sex");
-    const phone = pick(data, "telephoneno", "phone", "phone_number", "phoneNumber", "mobile", "telephone");
-    const rawPhoto = pick(data, "photo", "image", "picture", "photograph");
-    const photo = rawPhoto.length > 0 ? rawPhoto : null;
-    const providerRef = j?.reportID ? String(j.reportID) : j?.reference ? String(j.reference) : undefined;
-
-    await settle(c.reference, "successful", { provider: activeProvider, providerRef });
-    await recordAttempt(c, { subjectName: fullName || null, status: "successful", cost: c.price }).catch(() =>
-      console.error("[identity] could not save the history record")
-    );
-
-    return {
-      reference: c.reference,
-      type: c.type,
-      idNumber: c.masked,
-      fullName,
-      firstName,
-      middleName,
-      lastName,
-      dateOfBirth: dob,
-      gender,
-      phone,
-      photo,
-      costNaira: c.price,
-    };
-  }
-
-  return failFromReply(c, reply, activeProvider);
+  return {
+    reference: c.reference,
+    type: c.type,
+    idNumber: c.masked,
+    fullName,
+    firstName,
+    middleName,
+    lastName,
+    dateOfBirth: dob,
+    gender,
+    phone,
+    photo,
+    costNaira: c.price,
+  };
 }
 
 /** A genuine PDF starts with "%PDF-", which is "JVBERi0" in base64. */
