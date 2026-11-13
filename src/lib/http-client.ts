@@ -2,12 +2,7 @@
 // hosting platform) returns a non-JSON body — e.g. Vercel's plain "An error occurred" page on a function timeout or
 // crash — the user sees a clear message instead of a raw "Unexpected token 'A'… is not valid JSON" parse error.
 
-export async function postJson<T = unknown>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+async function readJson<T>(res: Response): Promise<T> {
   const text = await res.text().catch(() => "");
   let data: unknown = null;
   try {
@@ -27,4 +22,18 @@ export async function postJson<T = unknown>(url: string, body: unknown): Promise
     throw new Error(serverMsg || fallback);
   }
   return data as T;
+}
+
+export async function postJson<T = unknown>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<T>(res);
+}
+
+export async function getJson<T = unknown>(url: string): Promise<T> {
+  const res = await fetch(url);
+  return readJson<T>(res);
 }

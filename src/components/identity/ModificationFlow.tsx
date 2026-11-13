@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { formatNaira } from "@/lib/format";
+import { getJson, postJson } from "@/lib/http-client";
 import { useWallet } from "@/lib/wallet";
 import type { ServiceItem } from "@/lib/types";
 
@@ -83,11 +84,13 @@ export function ModificationFlow({ service }: Props) {
   // States
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [orderSuccess, setOrderSuccess] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
   // Status Tab
   const [searchRef, setSearchRef] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [statusResult, setStatusResult] = useState<any>(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusError, setStatusError] = useState("");
@@ -116,6 +119,7 @@ export function ModificationFlow({ service }: Props) {
 
     setBusy(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload: any = {
         service_type: serviceType,
         consent: true,
@@ -147,17 +151,7 @@ export function ModificationFlow({ service }: Props) {
         }
       }
 
-      const res = await fetch("/api/verify/nin-modification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Order submission failed.");
-      }
-
+      const data = await postJson("/api/verify/nin-modification", payload);
       setOrderSuccess(data);
       void refresh();
     } catch (err) {
@@ -176,11 +170,7 @@ export function ModificationFlow({ service }: Props) {
     setStatusBusy(true);
     setStatusError("");
     try {
-      const res = await fetch(`/api/verify/nin-modification?reference_id=${encodeURIComponent(targetRef)}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Could not retrieve status.");
-      }
+      const data = await getJson(`/api/verify/nin-modification?reference_id=${encodeURIComponent(targetRef)}`);
       setStatusResult(data);
     } catch (err) {
       setStatusError(err instanceof Error ? err.message : "Failed to fetch status.");

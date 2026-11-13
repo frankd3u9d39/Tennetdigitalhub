@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ServiceIcon } from "@/lib/icons";
 import { formatNaira } from "@/lib/format";
+import { postJson } from "@/lib/http-client";
 import { useWallet } from "@/lib/wallet";
 import { SLIP_TIERS, type IdentityType, type SlipTier } from "@/lib/identity-prices";
 import { usePricing } from "@/lib/use-pricing";
@@ -100,14 +101,8 @@ export function IdentityFlow({ service }: { service: ServiceItem }) {
     clearSlip();
     setLookedUp("");
     try {
-      const res = await fetch("/api/verify/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, number: digits, consent, expectedPrice: price }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Verification failed.");
-      setResult(data as IdentityResult);
+      const data = await postJson<IdentityResult>("/api/verify/lookup", { type, number: digits, consent, expectedPrice: price });
+      setResult(data);
       setLookedUp(digits);
       setPhase("done");
     } catch (err) {
@@ -131,14 +126,7 @@ export function IdentityFlow({ service }: { service: ServiceItem }) {
     setSlipPhase("loading");
     setSlipError("");
     try {
-      const res = await fetch("/api/verify/slip", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, number: lookedUp, consent, tier, expectedPrice: slipPrice(tier) }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not create the slip.");
-      const file = data as SlipResponse;
+      const file = await postJson<SlipResponse>("/api/verify/slip", { type, number: lookedUp, consent, tier, expectedPrice: slipPrice(tier) });
       const url = pdfBlobUrl(file.pdfBase64);
       setSlip({ url, filename: file.filename, costNaira: file.costNaira });
       setSlipPhase("done");
